@@ -20,7 +20,7 @@ geometry:
   mean_chord: 3.450         # [SL] c̄ = 11.32 ft
 
 mass:
-  mass: 9298.6              # [SL] 20 500 lb (masse de référence du modèle)
+  mass: 9295.44             # [SL] 1/m = 1.57e-3 slug⁻¹ (≈ 20 490 lb)
   # Inerties (utilisées à partir de la phase 3)
   Ixx: 12874.8              # [SL]  9 496 slug·ft²
   Iyy: 75673.6              # [SL] 55 814 slug·ft²
@@ -35,7 +35,7 @@ propulsion:
   thrust_max_sl: 88964.0    # [SL] 20 000 lbf  (pleine PC)
   mil_power: 0.77           # [SL] position de manette correspondant au plein gaz sec
   # Effet de l'altitude : T ∝ (ρ/ρ0)^n
-  density_exponent: 1.15    # [SL] ajusté sur les poussées statiques des tables 0–50 000 ft (à revérifier)
+  density_exponent: 1.15    # [SL] ajusté sur les poussées statiques des tables 0–50 000 ft
   # Effet d'admission (ram) : T ∝ (1 + k·M), borné par ram_limit × poussée statique au sol
   ram_factor_mil: 0.20      # [EST]
   ram_factor_max: 1.10      # [EST] calé pour ≈ Mach 2 à 11 km
@@ -67,7 +67,15 @@ point_mass_response:
   alpha_rate_max_deg_s: 40.0      # [EST]
   roll_time_constant: 0.20        # [EST] [s]
 
-# Gouvernes (utilisées à partir de la phase 3) — débattements et vitesses [SL]
+# Modèle 6-DOF (phase 3)
+six_dof:
+  tables_file: f16_sl_tables.yaml   # tables aéro + moteur Stevens & Lewis (même dossier)
+  xcg_ref: 0.35             # [SL] centrage de référence des tables (fraction de c̄)
+  xcg: 0.30                 # [EST] centrage retenu : avion naturellement stable (option (a) de la roadmap).
+                            # 0.35 = nominal Stevens & Lewis, légèrement INSTABLE en tangage (comme le vrai F-16)
+  actuator_time_constant: 0.0495  # [SL] servocommandes : 1er ordre à 20.2 rad/s
+
+# Gouvernes — débattements et vitesses [SL]
 control_surfaces:
   elevator: {min_deg: -25.0, max_deg: 25.0, rate_max_deg_s: 60.0}
   aileron:  {min_deg: -21.5, max_deg: 21.5, rate_max_deg_s: 80.0}

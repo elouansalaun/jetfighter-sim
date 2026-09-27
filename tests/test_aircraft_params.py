@@ -20,7 +20,7 @@ def f16() -> AircraftParams:
 def test_load_f16_units(f16):
     assert f16.geometry.wing_area == pytest.approx(300 * 0.3048**2, rel=1e-3)
     assert f16.geometry.aspect_ratio == pytest.approx(3.0, rel=0.01)
-    assert f16.mass.mass == pytest.approx(20_500 * 0.45359237, rel=1e-4)
+    assert f16.mass.mass == pytest.approx(1 / 1.57e-3 * 14.5939029, rel=1e-5)  # 1/m S&L
     assert f16.limits.alpha_max == pytest.approx(math.radians(25))
     assert f16.limits.roll_rate_max == pytest.approx(math.radians(240))
     assert f16.control_surfaces["elevator"].max == pytest.approx(math.radians(25))
@@ -79,8 +79,8 @@ def test_thrust_levels_and_lapse(f16):
 
 @pytest.mark.parametrize(
     ("alt_ft", "mil_ratio", "max_ratio"),
-    # Rapports poussée(alt)/poussée(sol) à Mach 0 relevés dans les tables Stevens & Lewis
-    # (moteur F100). À revérifier sur l'ouvrage ; tolérance de 12 %.
+    # Rapports poussée(alt)/poussée(sol) à Mach 0 des tables Stevens & Lewis (moteur F100,
+    # configs/aircraft/f16_sl_tables.yaml) ; tolérance de 12 %.
     [
         (10_000, 9_150 / 12_680, 15_000 / 20_000),
         (30_000, 3_950 / 12_680, 7_000 / 20_000),

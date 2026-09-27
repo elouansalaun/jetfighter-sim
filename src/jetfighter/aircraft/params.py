@@ -115,6 +115,14 @@ class SurfaceLimits:
 
 
 @dataclass(frozen=True)
+class SixDofParams:
+    tables_path: Path  # fichier des tables aéro + moteur (chemin absolu)
+    xcg_ref: float  # centrage de référence des tables [fraction de c̄]
+    xcg: float  # centrage réel [fraction de c̄]
+    actuator_time_constant: float  # [s]
+
+
+@dataclass(frozen=True)
 class AircraftParams:
     name: str
     geometry: Geometry
@@ -124,9 +132,11 @@ class AircraftParams:
     limits: FlightLimits
     point_mass_response: PointMassResponse
     control_surfaces: dict[str, SurfaceLimits] = field(default_factory=dict)
+    six_dof: SixDofParams | None = None
 
     @classmethod
-    def from_dict(cls, d: dict[str, Any]) -> AircraftParams:
+    def from_dict(cls, d: dict[str, Any], base_dir: Path | None = None) -> AircraftParams:
+        """Construit les paramètres ; ``base_dir`` sert à résoudre les fichiers annexes."""
         lim = d["limits"]
         pmr = d["point_mass_response"]
         ap = d["aero_polar"]
@@ -165,12 +175,28 @@ class AircraftParams:
                 )
                 for k, v in d.get("control_surfaces", {}).items()
             },
+            six_dof=_six_dof(d.get("six_dof"), base_dir),
         )
 
     @classmethod
     def from_yaml(cls, path: str | Path) -> AircraftParams:
+        path = Path(path)
         with open(path, encoding="utf-8") as f:
-            return cls.from_dict(yaml.safe_load(f))
+            return cls.from_dict(yaml.safe_load(f), base_dir=path.resolve().parent)
+
+
+def _six_dof(d: dict[str, Any] | None, base_dir: Path | None) -> SixDofParams | None:
+    if d is None:
+        return None
+    tables = Path(d["tables_file"])
+    if not tables.is_absolute():
+        tables = (base_dir or CONFIG_DIR) / tables
+    return SixDofParams(
+        tables_path=tables,
+        xcg_ref=float(d["xcg_ref"]),
+        xcg=float(d["xcg"]),
+        actuator_time_constant=float(d["actuator_time_constant"]),
+    )
 
 
 def load_aircraft(name_or_path: str | Path = "f16") -> AircraftParams:
