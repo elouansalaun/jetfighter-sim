@@ -112,6 +112,15 @@ def _isa_scalar(H: float) -> tuple[float, float, float, float]:
     return t, p, rho, a
 
 
+def isa_scalar(h: float) -> tuple[float, float, float, float]:
+    """Chemin rapide pour la boucle de simulation : altitude géométrique scalaire [m].
+
+    Returns:
+        ``(T, P, ρ, a)`` en floats, sans construire d'``AtmosphereState``.
+    """
+    return _isa_scalar(EARTH_RADIUS * h / (EARTH_RADIUS + h))
+
+
 def _isa_array(H: npt.NDArray[np.float64]) -> tuple[npt.NDArray[np.float64], ...]:
     """Version vectorisée (numpy) pour les tracés et les analyses."""
     H = np.clip(H, H_MIN, H_MAX)
@@ -189,5 +198,6 @@ __all__ = [
     "geometric_altitude",
     "geopotential_altitude",
     "isa",
+    "isa_scalar",
     "mach_number",
 ]

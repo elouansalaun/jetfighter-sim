@@ -1,0 +1,74 @@
+# ==========================================================================
+# Paramètres de l'avion : F-16 (modèle simplifié)
+# ==========================================================================
+# Unités SI, SAUF les clés suffixées _deg / _deg_s (degrés, convertis au chargement).
+#
+# Sources :
+#   [SL]   Stevens, Lewis & Johnson, "Aircraft Control and Simulation" (modèle F-16,
+#          lui-même tiré de Nguyen et al., NASA TP-1538, 1979). Valeurs d'origine en unités
+#          impériales, rappelées en commentaire.
+#   [PUB]  Ordres de grandeur publics (fiches constructeur / US Air Force).
+#   [EST]  Estimation du projet, choisie pour donner des performances plausibles.
+#          À affiner : ce sont ces valeurs qu'on ajuste si le domaine de vol est irréaliste.
+# ==========================================================================
+
+name: F-16 (simplifié)
+
+geometry:
+  wing_area: 27.87          # [SL] S = 300 ft²
+  wing_span: 9.144          # [SL] b = 30 ft
+  mean_chord: 3.450         # [SL] c̄ = 11.32 ft
+
+mass:
+  mass: 9298.6              # [SL] 20 500 lb (masse de référence du modèle)
+  # Inerties (utilisées à partir de la phase 3)
+  Ixx: 12874.8              # [SL]  9 496 slug·ft²
+  Iyy: 75673.6              # [SL] 55 814 slug·ft²
+  Izz: 85552.1              # [SL] 63 100 slug·ft²
+  Ixz: 1331.4               # [SL]    982 slug·ft²
+
+propulsion:
+  # Modèle simplifié d'un turboréacteur double flux avec post-combustion (PC).
+  # Poussée au point fixe, niveau de la mer [SL] (moteur F100 du modèle Stevens & Lewis) :
+  thrust_idle_sl: 4715.0    # [SL]  1 060 lbf
+  thrust_mil_sl: 56404.0    # [SL] 12 680 lbf  (plein gaz sec)
+  thrust_max_sl: 88964.0    # [SL] 20 000 lbf  (pleine PC)
+  mil_power: 0.77           # [SL] position de manette correspondant au plein gaz sec
+  # Effet de l'altitude : T ∝ (ρ/ρ0)^n
+  density_exponent: 1.15    # [SL] ajusté sur les poussées statiques des tables 0–50 000 ft (à revérifier)
+  # Effet d'admission (ram) : T ∝ (1 + k·M), borné par ram_limit × poussée statique au sol
+  ram_factor_mil: 0.20      # [EST]
+  ram_factor_max: 1.10      # [EST] calé pour ≈ Mach 2 à 11 km
+  ram_limit: 1.30           # [EST] calé pour ≈ Mach 1.2–1.3 au niveau de la mer
+  engine_time_constant: 1.0 # [EST] réponse du régime moteur [s]
+
+aero_polar:
+  # Polaire utilisée par le modèle point-masse (phase 2) :
+  #   CL = CL0 + CLα(M)·α        CD = CD0(M) + k(M)·CL²
+  CL0: 0.10                 # [SL] CZ(α=0) ≈ −0.10 dans les tables du modèle
+  CLalpha: 3.5              # [SL] pente basse vitesse ≈ 0.061 /deg entre 0 et 25°  [1/rad]
+  mach:          [0.00,  0.60,  0.80,  0.90,  1.00,  1.20,  1.50,  2.00]
+  clalpha_scale: [1.00,  1.05,  1.15,  1.20,  1.15,  1.00,  0.80,  0.65]   # [EST] compressibilité
+  cd0:           [0.0175, 0.0175, 0.0180, 0.0220, 0.0380, 0.0420, 0.0400, 0.0370]  # [EST] lisse
+  k_induced:     [0.13,  0.13,  0.14,  0.16,  0.20,  0.26,  0.33,  0.42]   # [EST] AR ≈ 3, e ≈ 0.8
+
+limits:
+  n_max: 9.0                # [PUB] facteur de charge max
+  n_min: -3.0               # [PUB]
+  alpha_max_deg: 25.0       # [PUB] limiteur d'incidence des commandes de vol électriques
+  alpha_min_deg: -10.0      # [EST]
+  roll_rate_max_deg_s: 240.0  # [EST] taux de roulis max commandable
+  mach_max: 2.0             # [PUB]
+  ceiling: 15240.0          # [PUB] plafond pratique 50 000 ft
+
+# Dynamique des commandes du modèle point-masse (réponse de l'avion + commandes de vol)
+point_mass_response:
+  alpha_time_constant: 0.25       # [EST] ≈ oscillation d'incidence (short period) amortie [s]
+  alpha_rate_max_deg_s: 40.0      # [EST]
+  roll_time_constant: 0.20        # [EST] [s]
+
+# Gouvernes (utilisées à partir de la phase 3) — débattements et vitesses [SL]
+control_surfaces:
+  elevator: {min_deg: -25.0, max_deg: 25.0, rate_max_deg_s: 60.0}
+  aileron:  {min_deg: -21.5, max_deg: 21.5, rate_max_deg_s: 80.0}
+  rudder:   {min_deg: -30.0, max_deg: 30.0, rate_max_deg_s: 120.0}

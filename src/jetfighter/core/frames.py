@@ -18,6 +18,7 @@ l'intégration de l'attitude se fait **toujours** sur le quaternion (pas de bloc
 from __future__ import annotations
 
 import math
+from collections.abc import Sequence
 
 import numpy as np
 import numpy.typing as npt
@@ -99,7 +100,7 @@ def quat_from_axis_angle(axis: Vec, angle: float) -> Vec:
     return np.array([math.cos(0.5 * angle), axis[0] * s, axis[1] * s, axis[2] * s])
 
 
-def quat_derivative(q: Vec, omega_body: Vec, k_norm: float = 0.0) -> Vec:
+def quat_derivative(q: Vec, omega_body: Vec | Sequence[float], k_norm: float = 0.0) -> Vec:
     """Dérivée du quaternion d'attitude : q̇ = ½ · q ⊗ [0, ω].
 
     Args:
