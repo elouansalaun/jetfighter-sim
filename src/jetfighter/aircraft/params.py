@@ -207,3 +207,52 @@ def load_aircraft(name_or_path: str | Path = "f16") -> AircraftParams:
     if not path.exists():
         raise FileNotFoundError(f"Configuration avion introuvable : {path}")
     return AircraftParams.from_yaml(path)
+
+
+# --------------------------------------------------------------------------
+# Enveloppe de vol (conditions de fin d'épisode)
+# --------------------------------------------------------------------------
+@dataclass(frozen=True)
+class EnvelopeLimits:
+    """Limites au-delà desquelles un vol est considéré comme perdu (fin d'épisode)."""
+
+    min_altitude: float  # [m] sol
+    max_altitude: float  # [m]
+    min_airspeed: float  # [m/s] vitesse vraie
+    max_mach: float
+    n_max: float  # facteur de charge structural
+    n_min: float
+    alpha_stall: float  # [rad]
+    stall_duration: float  # [s] durée tolérée au-delà de alpha_stall
+    beta_max: float  # [rad]
+
+    @classmethod
+    def from_dict(cls, d: dict[str, Any]) -> EnvelopeLimits:
+        return cls(
+            min_altitude=float(d["min_altitude"]),
+            max_altitude=float(d["max_altitude"]),
+            min_airspeed=float(d["min_airspeed"]),
+            max_mach=float(d["max_mach"]),
+            n_max=float(d["n_max"]),
+            n_min=float(d["n_min"]),
+            alpha_stall=float(d["alpha_stall_deg"]) * DEG_TO_RAD,
+            stall_duration=float(d["stall_duration"]),
+            beta_max=float(d["beta_max_deg"]) * DEG_TO_RAD,
+        )
+
+
+def load_envelope(name_or_path: str | Path = "f16", *, six_dof: bool = False) -> EnvelopeLimits:
+    """Limites d'enveloppe de la configuration avion (section ``envelope``).
+
+    Avec ``six_dof=True``, les valeurs de ``envelope.six_dof_overrides`` remplacent les
+    valeurs communes (le modèle 6-DOF a un domaine de validité plus étroit).
+    """
+    path = Path(name_or_path)
+    if not path.suffix:
+        path = CONFIG_DIR / f"{name_or_path}.yaml"
+    with open(path, encoding="utf-8") as f:
+        env = dict(yaml.safe_load(f)["envelope"])
+    overrides = env.pop("six_dof_overrides", {}) or {}
+    if six_dof:
+        env.update(overrides)
+    return EnvelopeLimits.from_dict(env)

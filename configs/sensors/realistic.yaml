@@ -1,0 +1,20 @@
+# Capteurs réalistes (ordres de grandeur d'une centrale anémobarométrique + centrale
+# inertielle de chasseur) — valeurs [EST], à utiliser pour la robustesse (phase 11).
+# std : bruit à chaque lecture ; bias_std : biais tiré à chaque épisode.
+# Unités SI ; suffixe _deg pour les angles en degrés (et °/s pour p, q, r).
+altitude:        {std: 3.0, bias_std: 10.0}      # [m]
+tas:             {std: 0.5, bias_std: 1.0}       # [m/s]
+cas:             {std: 0.5, bias_std: 1.0}       # [m/s]
+mach:            {std: 0.002}
+vertical_speed:  {std: 0.5}                      # [m/s]
+alpha:           {std_deg: 0.2, bias_std_deg: 0.3}
+beta:            {std_deg: 0.2, bias_std_deg: 0.3}
+roll:            {std_deg: 0.05, bias_std_deg: 0.1}
+pitch:           {std_deg: 0.05, bias_std_deg: 0.1}
+heading:         {std_deg: 0.1, bias_std_deg: 0.3}
+p:               {std_deg: 0.2, bias_std_deg: 0.05}
+q:               {std_deg: 0.2, bias_std_deg: 0.05}
+r:               {std_deg: 0.2, bias_std_deg: 0.05}
+nx:              {std: 0.01, bias_std: 0.005}    # [g]
+ny:              {std: 0.01, bias_std: 0.005}
+nz:              {std: 0.01, bias_std: 0.005}

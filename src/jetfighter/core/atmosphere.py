@@ -31,6 +31,7 @@ from typing import NamedTuple, Union
 
 import numpy as np
 import numpy.typing as npt
+from scipy.optimize import brentq
 
 from jetfighter.core.constants import A0, G0, GAMMA_AIR, P0, R_AIR, RHO0, T0
 
@@ -184,6 +185,46 @@ def equivalent_airspeed(V: FloatOrArray, h: FloatOrArray) -> FloatOrArray:
     return V * np.sqrt(isa(h).density / RHO0)
 
 
+# --------------------------------------------------------------------------
+# Vitesses anémométriques (ce qu'affiche un badin)
+# --------------------------------------------------------------------------
+def impact_pressure(mach: float, pressure: float) -> float:
+    """Pression d'impact qc = P_totale − P_statique mesurée par un tube de Pitot [Pa].
+
+    * subsonique : qc = P·[(1 + 0.2·M²)^3.5 − 1] (isentropique) ;
+    * supersonique : onde de choc droite devant le tube (formule de Rayleigh),
+      qc = P·[166.92158·M⁷ / (7·M² − 1)^2.5 − 1].
+    """
+    m2 = mach * mach
+    if mach <= 1.0:
+        return pressure * ((1.0 + 0.2 * m2) ** 3.5 - 1.0)
+    return pressure * (166.92158 * mach**7 / (7.0 * m2 - 1.0) ** 2.5 - 1.0)
+
+
+def _mach_from_impact_ratio(ratio: float) -> float:
+    """Mach tel que qc/P = ``ratio`` (inverse de ``impact_pressure``)."""
+    sub = math.sqrt(5.0 * ((ratio + 1.0) ** (2.0 / 7.0) - 1.0))
+    if sub <= 1.0:
+        return sub
+    return float(brentq(lambda m: impact_pressure(m, 1.0) - ratio, 1.0, 20.0, xtol=1e-14))
+
+
+def calibrated_airspeed(V: float, h: float) -> float:
+    """Vitesse corrigée CAS [m/s] : vitesse qui donnerait la même pression d'impact au
+    niveau de la mer en atmosphère standard. Égale à la vitesse vraie au niveau de la mer ;
+    plus faible en altitude. C'est la vitesse « ressentie » par l'avion (portance, limites)."""
+    _, pressure, _, a = isa_scalar(h)
+    qc = impact_pressure(abs(V) / a, pressure)
+    return A0 * _mach_from_impact_ratio(qc / P0)
+
+
+def true_airspeed_from_calibrated(cas: float, h: float) -> float:
+    """Inverse de ``calibrated_airspeed`` : vitesse vraie [m/s] pour une CAS à l'altitude h."""
+    _, pressure, _, a = isa_scalar(h)
+    qc = impact_pressure(cas / A0, P0)
+    return a * _mach_from_impact_ratio(qc / pressure)
+
+
 __all__ = [
     "A0",
     "EARTH_RADIUS",
@@ -193,11 +234,14 @@ __all__ = [
     "RHO0",
     "T0",
     "AtmosphereState",
+    "calibrated_airspeed",
     "dynamic_pressure",
     "equivalent_airspeed",
     "geometric_altitude",
     "geopotential_altitude",
+    "impact_pressure",
     "isa",
     "isa_scalar",
     "mach_number",
+    "true_airspeed_from_calibrated",
 ]

@@ -80,3 +80,18 @@ control_surfaces:
   elevator: {min_deg: -25.0, max_deg: 25.0, rate_max_deg_s: 60.0}
   aileron:  {min_deg: -21.5, max_deg: 21.5, rate_max_deg_s: 80.0}
   rudder:   {min_deg: -30.0, max_deg: 30.0, rate_max_deg_s: 120.0}
+
+# Enveloppe de vol : au-delà, le vol est perdu (fin d'épisode pour l'apprentissage)
+envelope:
+  min_altitude: 0.0         # [m] sol (terrain plat)
+  max_altitude: 17000.0     # [m] au-delà du plafond du modèle
+  min_airspeed: 50.0        # [m/s] vitesse vraie mini (bien sous la vitesse de décrochage)
+  max_mach: 2.0             # [PUB] Mach max du F-16
+  n_max: 10.0               # [EST] limite structurale : 9 g des commandes de vol + marge
+  n_min: -4.0               # [EST]
+  alpha_stall_deg: 30.0     # [EST] incidence de décrochage (hors limiteur de 25°)
+  stall_duration: 2.0       # [EST] durée tolérée au-delà de alpha_stall [s]
+  beta_max_deg: 30.0        # [SL] domaine des tables aéro
+  # Le modèle 6-DOF (tables sans effet du Mach) est limité au subsonique
+  six_dof_overrides:
+    max_mach: 0.95
