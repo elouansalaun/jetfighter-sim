@@ -8,6 +8,9 @@ Conventions :
 
 * **attitude** (roulis φ, assiette θ, cap ψ) : angles d'Euler 3-2-1 du **repère corps** ;
 * **trajectoire** (pente γ, route χ) : direction du vecteur vitesse ;
+* **inclinaison μ** (*bank*) : rotation du plan de portance autour du vecteur vitesse.
+  C'est elle qui fixe l'équilibre d'un virage (n·cos μ = cos γ en palier). Elle diffère
+  de la gîte φ du fuselage dès que l'incidence est grande ;
 * **facteurs de charge** n = f/g, avec f la force spécifique (ce que mesure un
   accéléromètre : efforts aéro + poussée divisés par la masse, sans la gravité), en axes
   corps. ``nz`` est compté **positif vers le haut** (1 en palier, 9 en ressource à 9 g) ;
@@ -57,6 +60,7 @@ class Instruments:
     vertical_speed: float  # ḣ [m/s]
     gamma: float  # pente
     course: float  # route χ
+    bank: float  # inclinaison μ du vecteur portance autour de la vitesse
     # Attitude (repère corps)
     roll: float  # φ
     pitch: float  # θ
@@ -117,6 +121,8 @@ def _read_6dof(model: d6.F16SixDof, x: Vec) -> Instruments:
     g = model.g
     specific_force = force / model.mass
     cas, eas = _airspeeds(v, fd.altitude)
+    c_nw = dcm_from_quat(x[d6.QUAT]) @ dcm_wind_to_body(fd.alpha, fd.beta)
+    bank, _, _ = euler_from_dcm(c_nw)
     return Instruments(
         north=fd.north,
         east=fd.east,
@@ -129,6 +135,7 @@ def _read_6dof(model: d6.F16SixDof, x: Vec) -> Instruments:
         vertical_speed=fd.climb_rate,
         gamma=fd.gamma,
         course=fd.course,
+        bank=bank,
         roll=fd.roll,
         pitch=fd.pitch,
         heading=fd.yaw,
@@ -185,6 +192,7 @@ def _read_3dof(model: d3.PointMassAircraft, x: Vec) -> Instruments:
         vertical_speed=fd.climb_rate,
         gamma=fd.gamma,
         course=fd.heading,
+        bank=fd.bank,
         roll=roll,
         pitch=pitch,
         heading=heading,

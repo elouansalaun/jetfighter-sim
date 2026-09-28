@@ -121,6 +121,24 @@ def test_point_mass_body_rates_in_level_turn(pm):
     assert ins.nz == pytest.approx(4.0 * math.cos(ins.alpha), rel=1e-9)
 
 
+@pytest.mark.parametrize("which", ["pm", "f16"])
+def test_velocity_bank_angle(request, which):
+    """Inclinaison μ du vecteur portance : nulle en palier ; en virage stabilisé 3-DOF,
+    égale à acos(1/n) ; proche de la gîte φ du fuselage quand l'incidence est faible."""
+    model = request.getfixturevalue(which)
+    if which == "pm":
+        x, _ = model.trimmed_state(3000.0, 250.0, load_factor=3.0)
+        ins = read_instruments(model, x)
+        assert ins.bank == pytest.approx(math.acos(1 / 3), abs=1e-9)
+    else:
+        x, _ = model.trim(3000.0, 250.0)
+        x = model.make_state(altitude=3000.0, airspeed=250.0, alpha=2 * DEG, roll=40 * DEG,
+                             pitch=2 * DEG * math.cos(40 * DEG))  # fmt: skip
+        ins = read_instruments(model, x)
+        assert ins.bank == pytest.approx(ins.roll, abs=1.5 * DEG)
+    assert abs(ins.bank - ins.roll) < 2 * DEG
+
+
 def test_point_mass_attitude_in_climb(pm):
     x, _ = pm.trimmed_state(2000.0, 220.0, gamma=12 * DEG)
     ins = read_instruments(pm, x)
