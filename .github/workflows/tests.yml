@@ -16,6 +16,6 @@ jobs:
       - name: Installer
         run: uv venv --python ${{ matrix.python-version }} && uv pip install -e ".[dev]"
       - name: Lint
-        run: uv run ruff check . && uv run ruff format --check .
+        run: uv run --no-sync ruff check . && uv run --no-sync ruff format --check .
       - name: Tests
-        run: uv run pytest
+        run: uv run --no-sync pytest

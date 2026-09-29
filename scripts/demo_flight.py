@@ -3,9 +3,9 @@
 Le F-16, en boucle ouverte (commandes préprogrammées), enchaîne depuis 3000 m / 250 m/s
 un looping plein gaz puis un tonneau. Sans pilote automatique, les commandes sont réglées
 « à la main » : c'est justement ce que l'apprentissage devra faire mieux.
-Les sorties vont dans ``outputs/flights/`` :
+Les sorties vont dans ``results/flights/`` :
 
-* ``demo.npz``       : enregistrement complet (rejouable, cf. ``jetfighter.viz.recorder.replay``) ;
+* ``demo.npz``       : enregistrement complet (rejouable, cf. ``jetsim.viz.recorder.replay``) ;
 * ``demo_series.png`` et ``demo_3d.png`` : tracés ;
 * ``demo.acmi``      : à ouvrir dans Tacview (https://www.tacview.net, version gratuite).
 
@@ -24,14 +24,14 @@ import matplotlib
 matplotlib.use("Agg")
 import numpy as np
 
-from jetfighter.aircraft import dynamics_3dof as d3
-from jetfighter.aircraft import dynamics_6dof as d6
-from jetfighter.aircraft.envelope import EnvelopeMonitor
-from jetfighter.aircraft.instruments import read_instruments
-from jetfighter.aircraft.params import load_aircraft, load_envelope
-from jetfighter.viz.plots import plot_time_series, plot_trajectory_3d
-from jetfighter.viz.recorder import FlightRecorder
-from jetfighter.viz.tacview import export_recording
+from jetsim.aircraft import dynamics_3dof as d3
+from jetsim.aircraft import dynamics_6dof as d6
+from jetsim.aircraft.envelope import EnvelopeMonitor
+from jetsim.aircraft.instruments import read_instruments
+from jetsim.aircraft.params import load_aircraft, load_envelope
+from jetsim.viz.plots import plot_time_series, plot_trajectory_3d
+from jetsim.viz.recorder import FlightRecorder
+from jetsim.viz.tacview import export_recording
 
 DEG = math.pi / 180
 DT, SUBSTEPS = 0.01, 10  # physique 100 Hz, enregistrement 10 Hz
@@ -103,7 +103,7 @@ class Sequencer:
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--model", choices=("3dof", "6dof"), default="6dof")
-    parser.add_argument("--out", default="outputs/flights/demo")
+    parser.add_argument("--out", default="results/flights/demo")
     args = parser.parse_args()
 
     params = load_aircraft("f16")

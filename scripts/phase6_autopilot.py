@@ -7,7 +7,7 @@
 2. **Réponses indicielles** des commandes de vol électriques 6-DOF (n_z et taux de roulis) à
    trois points de vol, avec l'avion stable (x_cg = 0.30) et instable (x_cg = 0.35).
 
-Sorties dans ``outputs/`` : ``phase6_mission.png``, ``phase6_fbw.png`` et
+Sorties dans ``results/`` : ``phase6_mission.png``, ``phase6_fbw.png`` et
 ``flights/phase6_mission_6dof.acmi`` (Tacview).
 
 Usage :
@@ -25,19 +25,19 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 
-from jetfighter.aircraft import dynamics_3dof as d3
-from jetfighter.aircraft import dynamics_6dof as d6
-from jetfighter.aircraft.instruments import read_instruments
-from jetfighter.aircraft.params import load_aircraft
-from jetfighter.control.autopilot import Autopilot, AutopilotTargets
-from jetfighter.control.fbw import HighLevelCommand, make_inner_loop
-from jetfighter.viz.recorder import FlightRecorder
-from jetfighter.viz.style import GRID, INK, INK_2, SERIES, apply_style
-from jetfighter.viz.tacview import export_recording
+from jetsim.aircraft import dynamics_3dof as d3
+from jetsim.aircraft import dynamics_6dof as d6
+from jetsim.aircraft.instruments import read_instruments
+from jetsim.aircraft.params import load_aircraft
+from jetsim.control.autopilot import Autopilot, AutopilotTargets
+from jetsim.control.fbw import HighLevelCommand, make_inner_loop
+from jetsim.viz.recorder import FlightRecorder
+from jetsim.viz.style import GRID, INK, INK_2, SERIES, apply_style
+from jetsim.viz.tacview import export_recording
 
 DEG = math.pi / 180
 DT = 0.02  # boucle de commande 50 Hz (2 pas physiques)
-OUT = Path("outputs")
+OUT = Path("results")
 
 
 def mission(t: float) -> AutopilotTargets:

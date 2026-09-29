@@ -5,8 +5,8 @@ import math
 import numpy as np
 import pytest
 
-from jetfighter.core.constants import G0
-from jetfighter.core.integrators import (
+from jetsim.core.constants import G0
+from jetsim.core.integrators import (
     euler_step,
     rk4_step,
     simulate,

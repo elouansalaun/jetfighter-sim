@@ -5,8 +5,8 @@ import math
 import numpy as np
 import pytest
 
-from jetfighter.core import frames as fr
-from jetfighter.core.integrators import rk4_step
+from jetsim.core import frames as fr
+from jetsim.core.integrators import rk4_step
 
 RNG = np.random.default_rng(42)
 TOL = 1e-9

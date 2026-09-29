@@ -9,13 +9,13 @@ matplotlib.use("Agg")
 import numpy as np
 import pytest
 
-from jetfighter.aircraft import dynamics_3dof as d3
-from jetfighter.aircraft import dynamics_6dof as d6
-from jetfighter.aircraft.params import load_aircraft
-from jetfighter.viz.manual import INPUTS, ManualFlight, Stick
-from jetfighter.viz.plots import plot_time_series, plot_trajectory_3d
-from jetfighter.viz.recorder import FlightRecorder, FlightRecording, build_model, replay
-from jetfighter.viz.tacview import EARTH_RADIUS, AcmiWriter, export_recording
+from jetsim.aircraft import dynamics_3dof as d3
+from jetsim.aircraft import dynamics_6dof as d6
+from jetsim.aircraft.params import load_aircraft
+from jetsim.viz.manual import INPUTS, ManualFlight, Stick
+from jetsim.viz.plots import plot_time_series, plot_trajectory_3d
+from jetsim.viz.recorder import FlightRecorder, FlightRecording, build_model, replay
+from jetsim.viz.tacview import EARTH_RADIUS, AcmiWriter, export_recording
 
 DEG = math.pi / 180
 
@@ -240,7 +240,7 @@ def test_manual_flight_rejects_unknown_model():
 def test_hud_renders_headless(monkeypatch):
     pygame = pytest.importorskip("pygame")
     monkeypatch.setenv("SDL_VIDEODRIVER", "dummy")
-    from jetfighter.viz.manual import HudRenderer
+    from jetsim.viz.manual import HudRenderer
 
     pygame.init()
     surf = pygame.Surface((1100, 700))

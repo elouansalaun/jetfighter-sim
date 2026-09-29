@@ -6,13 +6,13 @@ import math
 import numpy as np
 import pytest
 
-from jetfighter.aircraft import dynamics_3dof as d3
-from jetfighter.aircraft import dynamics_6dof as d6
-from jetfighter.aircraft.envelope import EnvelopeMonitor, Violation
-from jetfighter.aircraft.instruments import INSTRUMENT_NAMES, Instruments, read_instruments
-from jetfighter.aircraft.params import CONFIG_DIR, load_aircraft, load_envelope
-from jetfighter.aircraft.sensors import ChannelNoise, SensorSuite
-from jetfighter.core.atmosphere import (
+from jetsim.aircraft import dynamics_3dof as d3
+from jetsim.aircraft import dynamics_6dof as d6
+from jetsim.aircraft.envelope import EnvelopeMonitor, Violation
+from jetsim.aircraft.instruments import INSTRUMENT_NAMES, Instruments, read_instruments
+from jetsim.aircraft.params import SENSORS_DIR, load_aircraft, load_envelope
+from jetsim.aircraft.sensors import ChannelNoise, SensorSuite
+from jetsim.core.atmosphere import (
     A0,
     P0,
     calibrated_airspeed,
@@ -20,8 +20,8 @@ from jetfighter.core.atmosphere import (
     impact_pressure,
     true_airspeed_from_calibrated,
 )
-from jetfighter.core.constants import G0
-from jetfighter.core.integrators import simulate
+from jetsim.core.constants import G0
+from jetsim.core.integrators import simulate
 
 DEG = math.pi / 180
 
@@ -208,9 +208,7 @@ def test_sensor_reproducibility(truth):
 
 
 def test_sensor_yaml_config(truth):
-    sensors = SensorSuite.from_yaml(
-        CONFIG_DIR.parent / "sensors" / "realistic.yaml", np.random.default_rng(1)
-    )
+    sensors = SensorSuite.from_yaml(SENSORS_DIR / "realistic.yaml", np.random.default_rng(1))
     assert sensors.noise["alpha"].std == pytest.approx(0.2 * DEG)
     assert sensors.noise["altitude"].bias_std == 10.0
     m = sensors.measure(truth)

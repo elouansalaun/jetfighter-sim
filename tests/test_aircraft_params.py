@@ -5,11 +5,11 @@ import math
 
 import pytest
 
-from jetfighter.aircraft.aero_polar import PolarAero, interp1
-from jetfighter.aircraft.params import AircraftParams, load_aircraft
-from jetfighter.aircraft.propulsion import SimpleTurbofan
-from jetfighter.core.atmosphere import isa_scalar
-from jetfighter.core.constants import RHO0
+from jetsim.aircraft.aero_polar import PolarAero, interp1
+from jetsim.aircraft.params import AircraftParams, load_aircraft
+from jetsim.aircraft.propulsion import SimpleTurbofan
+from jetsim.core.atmosphere import isa_scalar
+from jetsim.core.constants import RHO0
 
 
 @pytest.fixture(scope="module")
@@ -80,7 +80,7 @@ def test_thrust_levels_and_lapse(f16):
 @pytest.mark.parametrize(
     ("alt_ft", "mil_ratio", "max_ratio"),
     # Rapports poussée(alt)/poussée(sol) à Mach 0 des tables Stevens & Lewis (moteur F100,
-    # configs/aircraft/f16_sl_tables.yaml) ; tolérance de 12 %.
+    # src/jetsim/data/aircraft/f16_sl_tables.yaml) ; tolérance de 12 %.
     [
         (10_000, 9_150 / 12_680, 15_000 / 20_000),
         (30_000, 3_950 / 12_680, 7_000 / 20_000),

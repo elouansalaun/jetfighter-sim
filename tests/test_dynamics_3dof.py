@@ -6,8 +6,8 @@ import numpy as np
 import pytest
 from scipy.integrate import trapezoid
 
-from jetfighter.aircraft import performance as perf
-from jetfighter.aircraft.dynamics_3dof import (
+from jetsim.aircraft import performance as perf
+from jetsim.aircraft.dynamics_3dof import (
     ALPHA,
     N_STATE,
     POWER,
@@ -17,10 +17,10 @@ from jetfighter.aircraft.dynamics_3dof import (
     TrimError,
     V,
 )
-from jetfighter.aircraft.params import load_aircraft
-from jetfighter.core.constants import G0
-from jetfighter.core.frames import wrap_angle
-from jetfighter.core.integrators import simulate
+from jetsim.aircraft.params import load_aircraft
+from jetsim.core.constants import G0
+from jetsim.core.frames import wrap_angle
+from jetsim.core.integrators import simulate
 
 DEG = math.pi / 180
 

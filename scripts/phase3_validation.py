@@ -5,7 +5,7 @@ Affiche :
 * les modes propres (oscillation d'incidence, phugoïde, roulis hollandais, roulis, spirale) ;
 * la vitesse de simulation.
 
-Trace (outputs/phase3_validation.png) quatre réponses depuis un vol stabilisé à 3000 m, 200 m/s :
+Trace (results/phase3_validation.png) quatre réponses depuis un vol stabilisé à 3000 m, 200 m/s :
 1. doublet de profondeur (incidence et assiette) ;
 2. impulsion d'ailerons (gîte) ;
 3. impulsion de direction (dérapage et gîte : roulis hollandais) ;
@@ -25,10 +25,10 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import numpy as np
 
-from jetfighter.aircraft import analysis as an
-from jetfighter.aircraft import dynamics_6dof as d6
-from jetfighter.aircraft.params import load_aircraft
-from jetfighter.core.integrators import simulate
+from jetsim.aircraft import analysis as an
+from jetsim.aircraft import dynamics_6dof as d6
+from jetsim.aircraft.params import load_aircraft
+from jetsim.core.integrators import simulate
 
 SURFACE, INK, INK_2, GRID = "#fcfcfb", "#0b0b0b", "#52514e", "#e4e3df"
 SERIES = ["#2a78d6", "#eb6834", "#1baf7a"]
@@ -183,7 +183,7 @@ def plot_all(model: d6.F16SixDof, out: Path) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--out", default="outputs/phase3_validation.png")
+    parser.add_argument("--out", default="results/phase3_validation.png")
     parser.add_argument("--show", action="store_true")
     args = parser.parse_args()
 

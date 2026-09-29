@@ -5,8 +5,8 @@ import math
 import numpy as np
 import pytest
 
-from jetfighter.core import constants as c
-from jetfighter.core.atmosphere import (
+from jetsim.core import constants as c
+from jetsim.core.atmosphere import (
     H_MAX,
     dynamic_pressure,
     equivalent_airspeed,

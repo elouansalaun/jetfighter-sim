@@ -5,27 +5,27 @@ import math
 import numpy as np
 import pytest
 
-from jetfighter.aircraft import dynamics_3dof as d3
-from jetfighter.aircraft import dynamics_6dof as d6
-from jetfighter.aircraft.instruments import read_instruments
-from jetfighter.aircraft.params import load_aircraft
-from jetfighter.control.autopilot import Autopilot, AutopilotTargets
-from jetfighter.control.fbw import (
+from jetsim.aircraft import dynamics_3dof as d3
+from jetsim.aircraft import dynamics_6dof as d6
+from jetsim.aircraft.instruments import read_instruments
+from jetsim.aircraft.params import load_aircraft
+from jetsim.control.autopilot import Autopilot, AutopilotTargets
+from jetsim.control.fbw import (
     FlyByWire,
     HighLevelCommand,
     PointMassInnerLoop,
     make_inner_loop,
 )
-from jetfighter.control.lqr import LongitudinalLQR, lqr
-from jetfighter.control.maneuvers import (
+from jetsim.control.lqr import LongitudinalLQR, lqr
+from jetsim.control.maneuvers import (
     beam_heading,
     bearing_to,
     break_turn,
     drag_heading,
     relative_bearing,
 )
-from jetfighter.control.pid import PID, Washout, wrap_angle
-from jetfighter.core.constants import G0
+from jetsim.control.pid import PID, Washout, wrap_angle
+from jetsim.core.constants import G0
 
 DEG = math.pi / 180
 DT = 0.02  # période de la boucle de commande (50 Hz), 2 pas physiques

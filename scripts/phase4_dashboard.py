@@ -4,7 +4,7 @@ Le F-16 6-DOF part d'un vol stabilisé (3000 m, 200 m/s), fait une ressource, ba
 le dos puis part en piqué plein gaz (Split-S raté) jusqu'à ce que le moniteur
 d'enveloppe arrête le vol.
 Le tableau de bord est affiché chaque seconde, en valeurs vraies et mesurées
-(capteurs de ``configs/sensors/realistic.yaml``).
+(capteurs de ``src/jetsim/data/sensors/realistic.yaml``).
 
 Usage :
     python scripts/phase4_dashboard.py
@@ -16,11 +16,11 @@ import math
 
 import numpy as np
 
-from jetfighter.aircraft import dynamics_6dof as d6
-from jetfighter.aircraft.envelope import EnvelopeMonitor
-from jetfighter.aircraft.instruments import read_instruments
-from jetfighter.aircraft.params import CONFIG_DIR, load_aircraft, load_envelope
-from jetfighter.aircraft.sensors import SensorSuite
+from jetsim.aircraft import dynamics_6dof as d6
+from jetsim.aircraft.envelope import EnvelopeMonitor
+from jetsim.aircraft.instruments import read_instruments
+from jetsim.aircraft.params import SENSORS_DIR, load_aircraft, load_envelope
+from jetsim.aircraft.sensors import SensorSuite
 
 DEG = math.pi / 180
 DT, CONTROL_DT = 0.01, 0.1
@@ -44,9 +44,7 @@ def pilot(t: float, u_trim: np.ndarray) -> np.ndarray:
 def main() -> None:
     model = d6.F16SixDof(load_aircraft("f16"))
     monitor = EnvelopeMonitor(load_envelope("f16", six_dof=True))
-    sensors = SensorSuite.from_yaml(
-        CONFIG_DIR.parent / "sensors" / "realistic.yaml", np.random.default_rng(0)
-    )
+    sensors = SensorSuite.from_yaml(SENSORS_DIR / "realistic.yaml", np.random.default_rng(0))
     x, u_trim = model.trim(3000.0, 200.0)
 
     header = (

@@ -16,18 +16,18 @@ import math
 import numpy as np
 import pytest
 
-from jetfighter.aircraft import analysis as an
-from jetfighter.aircraft import dynamics_6dof as d6
-from jetfighter.aircraft.dynamics_3dof import PointMassAircraft
-from jetfighter.aircraft.params import load_aircraft
-from jetfighter.core.constants import FT_TO_M
-from jetfighter.core.frames import (
+from jetsim.aircraft import analysis as an
+from jetsim.aircraft import dynamics_6dof as d6
+from jetsim.aircraft.dynamics_3dof import PointMassAircraft
+from jetsim.aircraft.params import load_aircraft
+from jetsim.core.constants import FT_TO_M
+from jetsim.core.frames import (
     body_to_ned,
     body_velocity_from_aero,
     euler_rates,
     quat_from_euler,
 )
-from jetfighter.core.integrators import simulate
+from jetsim.core.integrators import simulate
 
 DEG = math.pi / 180
 SLUGFT3_TO_KGM3 = 515.378818

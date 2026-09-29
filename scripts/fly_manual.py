@@ -47,7 +47,7 @@ except ImportError as exc:
         f'  - sinon                   : {sys.executable} -m pip install -e ".[viz]"'
     )
 
-from jetfighter.viz.manual import HudRenderer, ManualFlight
+from jetsim.viz.manual import HudRenderer, ManualFlight
 
 FPS = 50
 KEYS = {
@@ -89,7 +89,7 @@ def main() -> None:
 
     pygame.init()
     screen = pygame.display.set_mode((1100, 700))
-    pygame.display.set_caption("JetFighter_RL — pilotage manuel")
+    pygame.display.set_caption("jetfighter-sim — pilotage manuel")
     clock = pygame.time.Clock()
     hud = HudRenderer(screen.get_size())
     joy = None

@@ -7,7 +7,7 @@ Trace trois vues du F-16 simplifié et affiche un résumé chiffré :
 3. un looping plein gaz (vue de profil), qui traverse la verticale sans singularité.
 
 Usage :
-    python scripts/phase2_performance.py            # enregistre outputs/phase2_performance.png
+    python scripts/phase2_performance.py            # enregistre results/phase2_performance.png
     python scripts/phase2_performance.py --show     # et ouvre la fenêtre
 """
 
@@ -21,10 +21,10 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import numpy as np
 
-from jetfighter.aircraft import performance as perf
-from jetfighter.aircraft.dynamics_3dof import PN, H, PointMassAircraft
-from jetfighter.aircraft.params import load_aircraft
-from jetfighter.core.integrators import simulate
+from jetsim.aircraft import performance as perf
+from jetsim.aircraft.dynamics_3dof import PN, H, PointMassAircraft
+from jetsim.aircraft.params import load_aircraft
+from jetsim.core.integrators import simulate
 
 # Palette de référence (mode clair) : séries dans un ordre fixe, texte en encre neutre
 SURFACE = "#fcfcfb"
@@ -200,7 +200,7 @@ def summary(ac: PointMassAircraft) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--out", default="outputs/phase2_performance.png")
+    parser.add_argument("--out", default="results/phase2_performance.png")
     parser.add_argument("--show", action="store_true")
     args = parser.parse_args()
 
