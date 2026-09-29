@@ -160,15 +160,23 @@ def export_recording(
     pilot: str = "JetFighter_RL",
     title: str | None = None,
     writer: AcmiWriter | None = None,
+    object_id: int = 0x101,
+    color: str = "Blue",
+    write: bool = True,
 ) -> Path:
-    """Exporte un vol enregistré vers un fichier ``.acmi`` lisible par Tacview."""
+    """Exporte un vol enregistré vers un fichier ``.acmi`` lisible par Tacview.
+
+    Pour mettre plusieurs vols dans le même fichier (agent et pilote automatique côte à
+    côte, par exemple), passer le même ``writer`` avec des ``object_id`` différents et
+    ``write=False`` sauf pour le dernier.
+    """
     w = writer or AcmiWriter(title=title or f"Vol {rec.model_type.upper()}")
-    w.add_object(AIRCRAFT_ID, name=name, type_tags="Air+FixedWing", pilot=pilot)
+    w.add_object(object_id, name=name, type_tags="Air+FixedWing", pilot=pilot, color=color)
     ins = rec.instruments
     for k, t in enumerate(rec.t):
         w.position(
             float(t),
-            AIRCRAFT_ID,
+            object_id,
             north=float(ins["north"][k]),
             east=float(ins["east"][k]),
             altitude=float(ins["altitude"][k]),
@@ -185,5 +193,16 @@ def export_recording(
         )
     for t, message in rec.events:
         kind = "Destroyed" if "sol" in message else "Message"
-        w.event(t, kind, (AIRCRAFT_ID,), message)
-    return w.write(path)
+        w.event(t, kind, (object_id,), message)
+    return w.write(path) if write else Path(path)
+
+
+def add_waypoints(
+    writer: AcmiWriter, waypoints: list[tuple[float, float, float]], first_id: int = 0x201
+) -> None:
+    """Ajoute des points de passage (nord, est, altitude) comme objets fixes."""
+    for k, (n, e, h) in enumerate(waypoints):
+        oid = first_id + k
+        writer.add_object(oid, name=f"WP{k + 1}", type_tags="Navaid+Static+Waypoint",
+                          color="Green", coalition="Neutrals")  # fmt: skip
+        writer.position(0.0, oid, north=n, east=e, altitude=h, roll=0.0, pitch=0.0, yaw=0.0)

@@ -77,6 +77,9 @@ class FbwGains:
     k_alpha_q: float = 0.05  # [g/(°/s)] amortissement du limiteur
     nz_max: float = 9.0
     nz_min: float = -3.0
+    k_nz_q: float = 0.05  # [g/(°/s)] anticipation du limiteur de n_z (dépassement)
+    nz_slew_rate: float = 20.0  # [g/s] vitesse max de variation de la consigne de n_z
+    damping_exponent: float = 0.5  # amortissement en q programmé en (q̄_ref/q̄)^0.5
     roll_rate_max: float = 240.0 * DEG
 
 
@@ -94,6 +97,7 @@ class FlyByWire:
         self.roll = PID(self.g.k_p, self.g.ki_p, out_min=-self._da[1], out_max=-self._da[0])
         self.yaw_filter = Washout(self.g.yaw_washout)
         self.nz_command = 1.0  # consigne effectivement suivie (après limiteurs)
+        self._nz_ref = 1.0  # consigne après limitation de vitesse de variation
 
     def reset(self, x: Vec) -> None:
         """Engage la boucle sans à-coup : les intégrateurs reprennent les gouvernes actuelles."""
@@ -101,12 +105,17 @@ class FlyByWire:
         self.roll.reset(output=-x[d6.DA])
         self.yaw_filter.reset(x[d6.R])
         self.nz_command = 1.0
+        self._nz_ref = 1.0
 
     def limited_nz(self, ins: Instruments, nz_cmd: float) -> float:
         """Consigne de n_z après limiteurs de facteur de charge et d'incidence."""
         g = self.g
-        nz = min(max(nz_cmd, g.nz_min), g.nz_max)
         q_deg = ins.q / DEG
+        # Limiteur de facteur de charge avec anticipation par la vitesse de tangage : sans
+        # elle, un échelon 1 -> −3 g à grande vitesse dépasse −4 g (limite structurale)
+        # (l'anticipation ne fait que resserrer les limites, jamais les élargir)
+        nz = min(max(nz_cmd, g.nz_min - g.k_nz_q * min(q_deg, 0.0)),
+                 g.nz_max - g.k_nz_q * max(q_deg, 0.0))  # fmt: skip
         upper = ins.nz + g.k_alpha * (g.alpha_max - ins.alpha) / DEG - g.k_alpha_q * q_deg
         lower = ins.nz + g.k_alpha * (g.alpha_min - ins.alpha) / DEG - g.k_alpha_q * q_deg
         return min(max(nz, lower), upper)
@@ -115,8 +124,13 @@ class FlyByWire:
         g = self.g
         sched = min(max(g.q_ref / max(ins.dynamic_pressure, 1.0), g.schedule_min),
                     g.schedule_max)  # fmt: skip
-        self.nz_command = self.limited_nz(ins, cmd.nz)
-        nose_up = self.pitch(self.nz_command - ins.nz, dt, gain=sched) - sched * g.k_q * ins.q
+        # consigne à vitesse de variation limitée : une inversion brutale (+9 -> −3 g) ne
+        # doit pas emballer la boucle (dépassement mesuré jusqu'à −5 g sans ce filtre)
+        step = g.nz_slew_rate * dt
+        self._nz_ref = min(max(cmd.nz, self._nz_ref - step), self._nz_ref + step)
+        self.nz_command = self.limited_nz(ins, self._nz_ref)
+        damping = g.k_q * sched**g.damping_exponent
+        nose_up = self.pitch(self.nz_command - ins.nz, dt, gain=sched) - damping * ins.q
         p_cmd = min(max(cmd.roll_rate, -g.roll_rate_max), g.roll_rate_max)
         roll_right = self.roll(p_cmd - ins.p, dt, gain=sched)
         rudder = sched * (g.k_r * self.yaw_filter(ins.r, dt) - g.k_beta * ins.beta)

@@ -32,6 +32,7 @@ from jetfighter.aircraft import dynamics_3dof as d3
 from jetfighter.aircraft import dynamics_6dof as d6
 from jetfighter.core.atmosphere import calibrated_airspeed, equivalent_airspeed
 from jetfighter.core.frames import (
+    aero_angles,
     dcm_from_quat,
     dcm_wind_to_body,
     euler_from_dcm,
@@ -210,3 +211,27 @@ def _read_3dof(model: d3.PointMassAircraft, x: Vec) -> Instruments:
         thrust=fd.thrust,
         power=fd.power,
     )
+
+
+# --------------------------------------------------------------------------
+# Géométrie (sans singularité) pour les tâches de navigation et de voltige
+# --------------------------------------------------------------------------
+def wind_axes(model: d3.PointMassAircraft | d6.F16SixDof, x: Vec) -> Vec:
+    """Matrice C_nw (repère vent -> NED), valable à toute attitude (y compris à la verticale).
+
+    Colonnes : direction de la vitesse ``x_w``, « aile droite » ``y_w``, et ``z_w`` ; la
+    portance est portée par −``z_w``. Contrairement aux angles (μ, γ, χ), elle ne présente
+    pas de singularité en montée ou en descente verticale (looping, Split-S).
+    """
+    if isinstance(model, d6.F16SixDof):
+        _, alpha, beta = aero_angles(x[d6.VEL])
+        return dcm_from_quat(x[d6.QUAT]) @ dcm_wind_to_body(alpha, beta)
+    if isinstance(model, d3.PointMassAircraft):
+        return dcm_from_quat(x[d3.QUAT])
+    raise TypeError(f"Modèle non pris en charge : {type(model).__name__}")
+
+
+def position_ned(model: d3.PointMassAircraft | d6.F16SixDof, x: Vec) -> Vec:
+    """Position [nord, est, bas] [m]."""
+    idx = (d6.PN, d6.PE, d6.H) if isinstance(model, d6.F16SixDof) else (d3.PN, d3.PE, d3.H)
+    return np.array([x[idx[0]], x[idx[1]], -x[idx[2]]])
