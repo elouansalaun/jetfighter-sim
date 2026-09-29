@@ -151,7 +151,7 @@ scripts/         demos and validation scripts (one per phase)
 tests/           unit and physical-validation tests
 notebooks/       guided tour, phases 0–6
 results/         reference figures and Tacview flights
-project_roadmap.md   detailed roadmap and decision log (in French)
+project_roadmap.md   detailed roadmap and decision log
 ```
 
 ## Conventions
