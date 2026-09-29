@@ -1,4 +1,4 @@
-"""Fondations physiques : constantes, atmosphère ISA, repères/rotations, intégrateurs."""
+"""Physics foundations: constants, ISA atmosphere, frames/rotations, integrators."""
 
 from jetsim.core import atmosphere, constants, frames, integrators
 from jetsim.core.atmosphere import AtmosphereState, dynamic_pressure, isa, mach_number

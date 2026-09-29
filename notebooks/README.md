@@ -14,8 +14,7 @@ be read in order, but each stands on its own.
 | 5 | [05_visualization](05_visualization.ipynb) | Flight recording, bit-exact replay, plots, Tacview export, manual flight |
 | 6 | [06_classical_control](06_classical_control.ipynb) | PID, fly-by-wire, autopilot, LQR, evasion primitives |
 
-The story continues in [jetfighter-rl](https://github.com/elouansalaun/jetfighter-rl/tree/main/notebooks)
-with notebooks 7 (Gymnasium environment) and 8 (RL maneuvers).
+
 
 ## Running them
 
@@ -24,4 +23,3 @@ uv venv && uv pip install -e ".[dev,notebooks]"
 uv run jupyter lab notebooks/
 ```
 
-Every notebook runs in under a minute on a laptop.

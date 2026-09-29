@@ -1,4 +1,4 @@
-"""jetsim : simulateur de vol d'avion de chasse (type F-16), modèles 3-DOF et 6-DOF,
-instruments, visualisation et commandes de vol classiques."""
+"""jetsim: fighter-jet flight simulator (F-16 class), 3-DOF and 6-DOF models,
+instruments, visualization and classical flight control."""
 
 __version__ = "0.1.0"

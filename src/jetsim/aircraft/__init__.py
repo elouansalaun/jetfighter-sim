@@ -1,1 +1,1 @@
-"""Modèle avion : paramètres, aérodynamique, propulsion, actionneurs, dynamique (phases 2 à 4)."""
+"""Aircraft model: parameters, aerodynamics, propulsion, actuators, dynamics (phases 2 to 4)."""

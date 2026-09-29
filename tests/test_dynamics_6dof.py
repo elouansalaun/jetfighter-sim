@@ -1,14 +1,14 @@
-"""Validation du modèle 6-DOF du F-16 (phase 3).
+"""Validation of the F-16 6-DOF model (phase 3).
 
-Références :
-* cas de vérification publié par Stevens & Lewis (dérivées d'état pour un état donné) ;
-* valeurs calculées avec l'implémentation de référence AeroBenchVVPython du même modèle
-  (5 états aléatoires) ;
-* point d'équilibre publié (502 ft/s, niveau de la mer, x_cg = 0.35) ;
-* lois physiques (conservation, sens des gouvernes, modes propres).
+References:
+* check case published by Stevens & Lewis (state derivatives for a given state);
+* values computed with the AeroBenchVVPython reference implementation of the same model
+  (5 random states);
+* published trim point (502 ft/s, sea level, x_cg = 0.35);
+* physical laws (conservation, control-surface signs, eigenmodes).
 
-Pour comparer au modèle d'origine, on utilise ici son atmosphère simplifiée et
-g = 32.17 ft/s² (le modèle du projet utilise l'ISA et g0 par défaut).
+To compare with the original model, its simplified atmosphere and
+g = 32.17 ft/s² are used here (the project model uses ISA and g0 by default).
 """
 
 import math
@@ -34,10 +34,10 @@ SLUGFT3_TO_KGM3 = 515.378818
 
 
 # --------------------------------------------------------------------------
-# Pont vers les conventions du modèle d'origine (unités impériales, état en V/α/β/Euler)
+# Bridge to the original model's conventions (imperial units, V/α/β/Euler state)
 # --------------------------------------------------------------------------
 def sl_atmosphere(h_m: float) -> tuple[float, float, float, float]:
-    """Atmosphère simplifiée du modèle Stevens & Lewis (sous-programme ADC), en SI."""
+    """Simplified atmosphere of the Stevens & Lewis model (ADC subroutine), in SI."""
     alt = h_m / FT_TO_M
     tfac = 1 - 0.703e-5 * alt
     t_rankine = 390.0 if alt >= 35_000 else 519.0 * tfac
@@ -53,8 +53,8 @@ def sl_model(xcg: float) -> d6.F16SixDof:
 
 
 def from_sl(x, u):
-    """État S&L [vt ft/s, α, β, φ, θ, ψ, p, q, r, pn ft, pe ft, h ft, pow %] et commande
-    [manette, δe°, δa°, δr°] -> état et commande du projet (gouvernes à leur consigne)."""
+    """S&L state [vt ft/s, α, β, φ, θ, ψ, p, q, r, pn ft, pe ft, h ft, pow %] and control
+    [throttle, δe°, δa°, δr°] -> project state and control (surfaces at their command)."""
     vt, al, be, ph, th, ps, p, q, r, pn, pe, h, pw = x
     s = np.zeros(d6.N_STATE)
     s[d6.PN], s[d6.PE], s[d6.H] = pn * FT_TO_M, pe * FT_TO_M, h * FT_TO_M
@@ -67,7 +67,7 @@ def from_sl(x, u):
 
 
 def to_sl_derivative(s, ds, x_sl):
-    """Dérivées du projet -> dérivées de l'état S&L."""
+    """Project derivatives -> S&L state derivatives."""
     be, ph, th = x_sl[2], x_sl[3], x_sl[4]
     u, v, w = s[d6.VEL]
     du, dv, dw = ds[d6.VEL]
@@ -98,21 +98,21 @@ def sl_derivative(x_sl, u_sl, xcg):
 
 
 # --------------------------------------------------------------------------
-# Cas de vérification
+# Check cases
 # --------------------------------------------------------------------------
 SL_CHECK_STATE = [500, 0.5, -0.2, -1, 1, -1, 0.7, -0.8, 0.9, 1000, 900, 10000, 90]
 SL_CHECK_CONTROL = [0.9, 20, -15, -20]
-# Dérivées publiées par Stevens & Lewis (x_cg = 0.4)
+# Derivatives published by Stevens & Lewis (x_cg = 0.4)
 SL_CHECK_PUBLISHED = [
     -75.23724, -0.8813491, -0.4759990, 2.505734, 0.3250820, 2.145926,
     12.62679, 0.9649671, 0.5809759, 342.4439, -266.7707, 248.1241, -58.68999,
 ]  # fmt: skip
-# Même cas avec les tables des implémentations de référence : ṗ et ṙ diffèrent des valeurs
-# publiées (écart ≈ 0.001 sur Cl, vraisemblablement une valeur de table différente de
-# l'édition utilisée pour la publication). Les 11 autres dérivées sont identiques.
+# Same case with the reference implementations' tables: ṗ and ṙ differ from the published
+# values (difference ≈ 0.001 on Cl, probably a table value different from the
+# edition used for the publication). The other 11 derivatives are identical.
 SL_CHECK_REFERENCE_P_R = (12.8289672, 0.5841226)
 
-# (état S&L, commande, x_cg, dérivées de référence AeroBenchVVPython)
+# (S&L state, control, x_cg, AeroBenchVVPython reference derivatives)
 REFERENCE_CASES = [
     (
         [
@@ -286,21 +286,21 @@ REFERENCE_CASES = [
     ),
 ]
 
-# Tolérance : les constantes d'inertie du modèle d'origine sont arrondies à 4 chiffres
-# (ex. 1/Iyy = 1.792e-5 au lieu de 1.7917e-5), d'où des écarts relatifs ≈ 2e-4.
+# Tolerance: the original model's inertia constants are rounded to 4 digits
+# (e.g. 1/Iyy = 1.792e-5 instead of 1.7917e-5), hence relative differences ≈ 2e-4.
 REL_TOL = 2e-3
 
 
 def assert_close(actual, expected, rel=REL_TOL):
     actual, expected = np.asarray(actual), np.asarray(expected)
     err = np.abs(actual - expected) / np.maximum(1.0, np.abs(expected))
-    assert err.max() < rel, f"écart relatif max {err.max():.2e} (composante {err.argmax()})"
+    assert err.max() < rel, f"max relative error {err.max():.2e} (component {err.argmax()})"
 
 
 def test_published_check_case():
     xd = sl_derivative(SL_CHECK_STATE, SL_CHECK_CONTROL, xcg=0.4)
     published = np.array(SL_CHECK_PUBLISHED)
-    same = [0, 1, 2, 3, 4, 5, 7, 9, 10, 11, 12]  # toutes sauf ṗ (6) et ṙ (8)
+    same = [0, 1, 2, 3, 4, 5, 7, 9, 10, 11, 12]  # all except ṗ (6) and ṙ (8)
     assert_close(xd[same], published[same])
     assert_close(xd[[6, 8]], SL_CHECK_REFERENCE_P_R)
 
@@ -311,8 +311,8 @@ def test_reference_implementation_cases(x, u, xcg, expected):
 
 
 def test_published_trim_point():
-    """Stevens & Lewis : 502 ft/s, niveau de la mer, x_cg = 0.35 ->
-    manette 0.1385, profondeur −0.7588°."""
+    """Stevens & Lewis: 502 ft/s, sea level, x_cg = 0.35 ->
+    throttle 0.1385, elevator −0.7588°."""
     model = sl_model(0.35)
     x, u = model.trim(0.0, 502 * FT_TO_M)
     assert u[d6.THROTTLE] == pytest.approx(0.1385, abs=5e-4)
@@ -324,7 +324,7 @@ def test_published_trim_point():
 
 
 # --------------------------------------------------------------------------
-# Modèle du projet (ISA, x_cg = 0.30 par défaut)
+# Project model (ISA, x_cg = 0.30 by default)
 # --------------------------------------------------------------------------
 @pytest.fixture(scope="module")
 def f16() -> d6.F16SixDof:
@@ -367,7 +367,7 @@ def test_trim_error_outside_envelope(f16):
 
 
 def test_consistent_with_point_mass_model(f16):
-    """Trim 6-DOF vs polaire du 3-DOF : incidence d'équilibre à moins de 1°."""
+    """6-DOF trim vs 3-DOF polar: trim angle of attack within 1°."""
     pm = PointMassAircraft(load_aircraft("f16"))
     for h, v in [(0, 153), (3000, 200), (6000, 250)]:
         x6, _ = f16.trim(h, v)
@@ -376,14 +376,14 @@ def test_consistent_with_point_mass_model(f16):
 
 
 # --------------------------------------------------------------------------
-# Sens physique des gouvernes (conventions standard)
+# Physical meaning of the control surfaces (standard conventions)
 # --------------------------------------------------------------------------
 @pytest.mark.parametrize(
     ("index", "rate", "name"),
     [
-        (d6.ELEVATOR, d6.Q, "profondeur > 0 -> piqué"),
-        (d6.AILERON, d6.P, "ailerons > 0 -> roulis à gauche"),
-        (d6.RUDDER, d6.R, "direction > 0 -> lacet à gauche"),
+        (d6.ELEVATOR, d6.Q, "elevator > 0 -> nose down"),
+        (d6.AILERON, d6.P, "ailerons > 0 -> roll left"),
+        (d6.RUDDER, d6.R, "rudder > 0 -> yaw left"),
     ],
 )
 def test_control_surface_signs(f16, index, rate, name):
@@ -397,7 +397,7 @@ def test_control_surface_signs(f16, index, rate, name):
 def test_actuator_rate_and_position_limits(f16):
     x0, u0 = f16.trim(3000, 200)
     u = u0.copy()
-    u[d6.ELEVATOR] = 60 * DEG  # au-delà de la butée de 25°
+    u[d6.ELEVATOR] = 60 * DEG  # beyond the 25° stop
     res = run(f16, x0, u, 0.1)
     rate_max = f16.params.control_surfaces["elevator"].rate_max
     assert res.x[-1, d6.DE] - x0[d6.DE] == pytest.approx(rate_max * 0.1, rel=1e-3)
@@ -406,14 +406,14 @@ def test_actuator_rate_and_position_limits(f16):
 
 
 # --------------------------------------------------------------------------
-# Moteur
+# Engine
 # --------------------------------------------------------------------------
 def test_engine_tables(f16):
     eng = f16.engine
     lbf = 4.4482216152605
-    assert eng.thrust(0.5, 0.0, 0.0) == pytest.approx(12_680 * lbf)  # plein gaz sec
-    assert eng.thrust(1.0, 0.0, 0.0) == pytest.approx(20_000 * lbf)  # pleine PC
-    assert eng.thrust(0.0, 0.0, 0.0) == pytest.approx(1_060 * lbf)  # ralenti
+    assert eng.thrust(0.5, 0.0, 0.0) == pytest.approx(12_680 * lbf)  # full dry power
+    assert eng.thrust(1.0, 0.0, 0.0) == pytest.approx(20_000 * lbf)  # full afterburner
+    assert eng.thrust(0.0, 0.0, 0.0) == pytest.approx(1_060 * lbf)  # idle
     assert eng.thrust(0.5, 10_000 * FT_TO_M, 0.0) == pytest.approx(9_150 * lbf)
     assert eng.commanded_power(0.77) == pytest.approx(0.5, abs=1e-3)
     assert eng.commanded_power(1.0) == pytest.approx(1.0)
@@ -422,7 +422,7 @@ def test_engine_tables(f16):
 
 
 def test_engine_spool_up_is_slow_then_afterburner_lights(f16):
-    """Du ralenti à pleine PC : montée lente en régime sec, puis allumage rapide de la PC."""
+    """From idle to full afterburner: slow dry spool-up, then fast afterburner light-off."""
     x0, u0 = f16.trim(3000, 200)
     u = u0.copy()
     u[d6.THROTTLE] = 1.0
@@ -434,11 +434,11 @@ def test_engine_spool_up_is_slow_then_afterburner_lights(f16):
 
 
 # --------------------------------------------------------------------------
-# Mécanique du corps rigide
+# Rigid-body mechanics
 # --------------------------------------------------------------------------
 def test_torque_free_rigid_body_conserves_momentum(monkeypatch):
-    """Sans aéro, poussée ni gravité : énergie cinétique de rotation et moment cinétique
-    (repère inertiel, moteur inclus) conservés — valide les équations d'Euler et Ixz."""
+    """Without aero, thrust or gravity: rotational kinetic energy and angular momentum
+    (inertial frame, engine included) are conserved — validates Euler's equations and Ixz."""
     model = d6.F16SixDof(load_aircraft("f16"), gravity=0.0)
     zero = type("Z", (), {"CX": 0.0, "CY": 0.0, "CZ": 0.0, "Cl": 0.0, "Cm": 0.0, "Cn": 0.0})
     monkeypatch.setattr(model.aero, "coefficients", lambda *a, **k: zero)
@@ -470,7 +470,7 @@ def test_quaternion_stays_normalized_in_aggressive_maneuver(f16):
 
 
 # --------------------------------------------------------------------------
-# Modes propres
+# Eigenmodes
 # --------------------------------------------------------------------------
 def test_flight_modes_at_default_cg(f16):
     x, u = f16.trim(0.0, 153.0)
@@ -486,8 +486,8 @@ def test_flight_modes_at_default_cg(f16):
 
 
 def test_nominal_sl_cg_is_statically_unstable():
-    """x_cg = 0.35 (nominal Stevens & Lewis) : divergence en tangage, comme le vrai F-16
-    sans ses commandes de vol électriques. Plus le centrage recule, plus elle est rapide."""
+    """x_cg = 0.35 (Stevens & Lewis nominal): pitch divergence, like the real F-16
+    without its fly-by-wire flight controls. The further aft the CG, the faster it diverges."""
     rates = []
     for xcg in (0.35, 0.40):
         model = d6.F16SixDof(load_aircraft("f16"), xcg=xcg)

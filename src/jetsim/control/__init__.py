@@ -1,1 +1,1 @@
-"""Contrôleurs classiques : PID, pilote automatique (phase 6)."""
+"""Classical controllers: PID, autopilot (phase 6)."""

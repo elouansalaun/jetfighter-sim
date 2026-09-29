@@ -1,26 +1,26 @@
-"""Propulsion simplifiée : turboréacteur double flux avec post-combustion (PC).
+"""Simplified propulsion: afterburning turbofan.
 
-Poussée en fonction de la **position de puissance** P ∈ [0, 1] :
+Thrust as a function of the power setting P ∈ [0, 1]:
 
-* 0 → ``mil_power`` : du ralenti au plein gaz sec (MIL), interpolation linéaire ;
-* ``mil_power`` → 1 : du plein gaz sec à la pleine PC (MAX).
+* 0 → ``mil_power``: from idle to full dry power (MIL), linear interpolation;
+* ``mil_power`` → 1: from full dry power to full afterburner (MAX).
 
-Corrections :
+Corrections:
 
-* **altitude** : (ρ/ρ0)^n. Avec n ≈ 1.15, on retrouve à quelques % près les poussées
-  statiques (Mach 0) des tables du modèle Stevens & Lewis entre 0 et 50 000 ft ;
-* **effet d'admission** (ram) : facteur (1 + k·M), k interpolé entre ``ram_factor_mil``
-  (régimes secs) et ``ram_factor_max`` (pleine PC) ;
-* **limite moteur** : la poussée ne dépasse pas ``ram_limit`` × la poussée statique au sol
-  du même régime. À basse altitude et grande vitesse, un vrai moteur est limité en
-  température et en pression ; sans cette borne, l'effet d'admission donnerait un
-  Mach max irréaliste au niveau de la mer.
+* altitude: (ρ/ρ0)^n. With n ≈ 1.15, this matches within a few % the static
+  (Mach 0) thrusts of the Stevens & Lewis model tables between 0 and 50,000 ft;
+* ram effect: factor (1 + k·M), k interpolated between ``ram_factor_mil``
+  (dry settings) and ``ram_factor_max`` (full afterburner);
+* engine limit: thrust never exceeds ``ram_limit`` × the static sea-level thrust
+  at the same setting. At low altitude and high speed, a real engine is limited by
+  temperature and pressure; without this bound, the ram effect would give an
+  unrealistic max Mach at sea level.
 
-La puissance suit la manette avec un retard du premier ordre (constante de temps
-``engine_time_constant``) : l'agent RL ne peut pas obtenir la pleine poussée instantanément.
+Power follows the throttle with a first-order lag (time constant
+``engine_time_constant``): the RL agent cannot get full thrust instantly.
 
-Ce modèle simple sert au point-masse (phase 2). Le modèle 6-DOF utilise
-``TabulatedTurbofan`` (tables de poussée altitude × Mach de Stevens & Lewis), plus bas.
+This simple model is used by the point-mass model (phase 2). The 6-DOF model uses
+``TabulatedTurbofan`` (Stevens & Lewis altitude × Mach thrust tables), below.
 """
 
 from __future__ import annotations
@@ -35,22 +35,22 @@ from jetsim.core.constants import RHO0
 
 
 class SimpleTurbofan:
-    """Modèle de poussée paramétrique (voir le module)."""
+    """Parametric thrust model (see the module docstring)."""
 
     def __init__(self, params: PropulsionParams) -> None:
         self.p = params
 
     def altitude_factor(self, rho: float) -> float:
-        """Rapport poussée(altitude) / poussée(niveau de la mer) à Mach nul."""
+        """Ratio thrust(altitude) / thrust(sea level) at zero Mach."""
         return float((rho / RHO0) ** self.p.density_exponent)
 
     def thrust(self, power: float, rho: float, mach: float) -> float:
-        """Poussée [N].
+        """Thrust [N].
 
         Args:
-            power: position de puissance effective, dans [0, 1] (saturée).
-            rho: masse volumique de l'air [kg/m³].
-            mach: nombre de Mach.
+            power: effective power setting, in [0, 1] (clamped).
+            rho: air density [kg/m³].
+            mach: Mach number.
         """
         p = self.p
         power = min(max(power, 0.0), 1.0)
@@ -66,24 +66,24 @@ class SimpleTurbofan:
         return t_sl * min(factor, p.ram_limit)
 
     def power_rate(self, power: float, throttle: float) -> float:
-        """Dérivée de la puissance effective vers la consigne de manette (1er ordre)."""
+        """Rate of the effective power toward the throttle command (first order)."""
         throttle = min(max(throttle, 0.0), 1.0)
         return (throttle - power) / self.p.engine_time_constant
 
 
 # ==========================================================================
-# Moteur tabulé du modèle Stevens & Lewis (utilisé par le modèle 6-DOF)
+# Tabulated engine from the Stevens & Lewis model (used by the 6-DOF model)
 # ==========================================================================
 class TabulatedTurbofan:
-    """Moteur F100 du modèle Stevens & Lewis : tables de poussée (altitude × Mach) pour
-    le ralenti, le plein gaz sec et la pleine post-combustion, et dynamique de puissance.
+    """F100 engine from the Stevens & Lewis model: thrust tables (altitude × Mach) for
+    idle, full dry power and full afterburner, plus power dynamics.
 
-    La **puissance** est ici exprimée en fraction [0, 1] (0.5 = plein gaz sec, au-delà :
-    post-combustion), soit le « pourcentage » du modèle d'origine divisé par 100.
+    **Power** is expressed here as a fraction [0, 1] (0.5 = full dry power, above that:
+    afterburner), i.e. the original model's "percentage" divided by 100.
 
-    * consigne de puissance : loi « throttle gearing » (coude à 77 % de manette) ;
-    * dynamique : 1er ordre dont la constante de temps dépend de l'écart (réponse lente
-      pour les grands écarts), 5 s⁻¹ en post-combustion, passage sec <-> PC par paliers.
+    * power command: "throttle gearing" law (knee at 77 % throttle);
+    * dynamics: first order whose time constant depends on the error (slow response
+      for large errors), 5 s⁻¹ in afterburner, dry <-> afterburner transitions in steps.
     """
 
     def __init__(self, engine: dict[str, Any], *, lbf_to_n: float, ft_to_m: float) -> None:
@@ -106,20 +106,20 @@ class TabulatedTurbofan:
         self._ab = float(engine["afterburner_threshold"]) / 100.0
 
     def commanded_power(self, throttle: float) -> float:
-        """Consigne de puissance [0, 1] en fonction de la manette [0, 1]."""
+        """Power command [0, 1] as a function of throttle [0, 1]."""
         throttle = min(max(throttle, 0.0), 1.0)
         bp, s_dry, s_ab, off_ab = self._gear
         pct = s_dry * throttle if throttle <= bp else s_ab * throttle + off_ab
         return pct / 100.0
 
     def throttle_for_power(self, power: float) -> float:
-        """Inverse de ``commanded_power`` (utile pour l'équilibrage)."""
+        """Inverse of ``commanded_power`` (useful for trimming)."""
         bp, s_dry, s_ab, off_ab = self._gear
         pct = power * 100.0
         return pct / s_dry if pct <= s_dry * bp else (pct - off_ab) / s_ab
 
     def thrust(self, power: float, altitude: float, mach: float) -> float:
-        """Poussée [N] pour une puissance [0, 1], une altitude [m] et un Mach."""
+        """Thrust [N] for a power [0, 1], an altitude [m] and a Mach number."""
         h = max(altitude, 0.0)
         t_mil = lerp2(self.mil, self.alt, h, self.mach, mach)
         if power < self._ab:
@@ -129,7 +129,7 @@ class TabulatedTurbofan:
         return t_mil + (t_max - t_mil) * (power - self._ab) / (1.0 - self._ab)
 
     def power_rate(self, power: float, commanded: float) -> float:
-        """Dérivée de la puissance [1/s] (fractions [0, 1])."""
+        """Power rate [1/s] (fractions [0, 1])."""
         ab = self._ab
         if commanded >= ab:
             if power >= ab:
@@ -146,7 +146,7 @@ class TabulatedTurbofan:
 
 
 def _inverse_time_constant(delta: float) -> float:
-    """1/τ du moteur selon l'écart de puissance (fraction) : 1 si ≤ 25 %, 0.1 si ≥ 50 %."""
+    """Engine 1/τ as a function of the power error (fraction): 1 if ≤ 25 %, 0.1 if ≥ 50 %."""
     dp = delta * 100.0
     if dp <= 25.0:
         return 1.0

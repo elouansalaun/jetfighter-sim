@@ -1,16 +1,16 @@
-"""Aérodynamique simplifiée « polaire » pour le modèle point-masse (phase 2).
+"""Simplified "drag polar" aerodynamics for the point-mass model (phase 2).
 
     CL(α, M) = CL0 + CLα·s(M)·α
     CD(CL, M) = CD0(M) + k(M)·CL²
 
-* s(M) : facteur de compressibilité sur la pente de portance (hausse en transsonique,
-  baisse en supersonique) ;
-* CD0(M) : traînée à portance nulle, avec la montée transsonique autour de Mach 1 ;
-* k(M) : coefficient de traînée induite, qui augmente en supersonique.
+* s(M): compressibility factor on the lift slope (rises in the transonic regime,
+  drops in the supersonic regime);
+* CD0(M): zero-lift drag, with the transonic drag rise around Mach 1;
+* k(M): induced-drag coefficient, which grows in the supersonic regime.
 
-Les tables sont interpolées linéairement en Mach et **saturées** hors de la plage.
-Le modèle n'a pas de décrochage : l'incidence est bornée en amont par le limiteur
-(α ≤ α_max = 25°, dans la zone où la portance du F-16 reste quasi linéaire).
+The tables are linearly interpolated in Mach and clamped outside their range.
+The model has no stall: angle of attack is bounded upstream by the limiter
+(α ≤ α_max = 25°, in the region where the F-16's lift stays nearly linear).
 """
 
 from __future__ import annotations
@@ -22,7 +22,7 @@ from jetsim.aircraft.params import PolarAeroParams
 
 
 def interp1(x: float, xs: Sequence[float], ys: Sequence[float]) -> float:
-    """Interpolation linéaire scalaire, saturée aux bornes (plus rapide que ``np.interp``)."""
+    """Scalar linear interpolation, clamped at the bounds (faster than ``np.interp``)."""
     if x <= xs[0]:
         return ys[0]
     if x >= xs[-1]:
@@ -33,21 +33,21 @@ def interp1(x: float, xs: Sequence[float], ys: Sequence[float]) -> float:
 
 
 class PolarAero:
-    """Coefficients aérodynamiques de la polaire (voir le module)."""
+    """Aerodynamic coefficients of the drag polar (see the module docstring)."""
 
     def __init__(self, params: PolarAeroParams) -> None:
         self.p = params
 
     def clalpha(self, mach: float) -> float:
-        """Pente de portance CLα(M) [1/rad]."""
+        """Lift-curve slope CLα(M) [1/rad]."""
         return self.p.CLalpha * interp1(mach, self.p.mach, self.p.clalpha_scale)
 
     def cl(self, alpha: float, mach: float) -> float:
-        """Coefficient de portance."""
+        """Lift coefficient."""
         return self.p.CL0 + self.clalpha(mach) * alpha
 
     def alpha_for_cl(self, cl: float, mach: float) -> float:
-        """Incidence [rad] donnant le coefficient de portance ``cl``."""
+        """Angle of attack [rad] giving the lift coefficient ``cl``."""
         return (cl - self.p.CL0) / self.clalpha(mach)
 
     def cd0(self, mach: float) -> float:
@@ -57,9 +57,9 @@ class PolarAero:
         return interp1(mach, self.p.mach, self.p.k_induced)
 
     def cd(self, cl: float, mach: float) -> float:
-        """Coefficient de traînée."""
+        """Drag coefficient."""
         return self.cd0(mach) + self.k_induced(mach) * cl * cl
 
     def max_lift_to_drag(self, mach: float) -> float:
-        """Finesse max de la polaire (en négligeant CL0 dans l'optimum) : 1 / (2·√(CD0·k))."""
+        """Max lift-to-drag ratio of the polar (neglecting CL0 at the optimum): 1 / (2·√(CD0·k))."""
         return 1.0 / (2.0 * (self.cd0(mach) * self.k_induced(mach)) ** 0.5)

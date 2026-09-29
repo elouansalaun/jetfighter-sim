@@ -1,17 +1,17 @@
-"""Intégrateurs à pas fixe et boucle de simulation générique.
+"""Fixed-step integrators and a generic simulation loop.
 
-Toute dynamique du projet (avion 3-DOF, 6-DOF, missile) s'écrit sous la forme ::
+Every dynamics in the project (3-DOF aircraft, 6-DOF, missile) is written in the form ::
 
     ẋ = f(t, x, u)
 
-avec x le vecteur d'état (numpy 1-D) et u le vecteur de commande. La commande est maintenue
-**constante pendant un pas** (bloqueur d'ordre zéro), comme le ferait un calculateur de vol.
+with x the state vector (1-D numpy) and u the control vector. The control is held
+constant over one step (zero-order hold), as a flight computer would do.
 
-Deux fréquences coexistent :
+Two rates coexist:
 
-* la **physique** avance à pas fixe ``dt`` (0.01 s par défaut, 100 Hz) ;
-* le **contrôleur** (PID, agent RL) décide toutes les ``control_dt`` (typiquement 0.05 à 0.1 s),
-  soit un *frame skip* de ``control_dt / dt`` pas physiques par décision.
+* the physics advances with a fixed step ``dt`` (0.01 s by default, 100 Hz);
+* the controller (PID, RL agent) decides every ``control_dt`` (typically 0.05 to 0.1 s),
+  i.e. a frame skip of ``control_dt / dt`` physics steps per decision.
 """
 
 from __future__ import annotations
@@ -25,28 +25,28 @@ import numpy.typing as npt
 
 Vec = npt.NDArray[np.float64]
 Dynamics = Callable[[float, Vec, Vec], Vec]
-"""Signature d'une dynamique : ``f(t, x, u) -> ẋ``."""
+"""Signature of a dynamics function: ``f(t, x, u) -> ẋ``."""
 
 Controller = Callable[[float, Vec], Vec]
-"""Signature d'un contrôleur : ``u = controller(t, x)``."""
+"""Signature of a controller: ``u = controller(t, x)``."""
 
 PostStep = Callable[[Vec], Vec]
-"""Traitement après chaque pas (ex. renormalisation du quaternion) : ``x = post_step(x)``."""
+"""Processing after each step (e.g. quaternion renormalization): ``x = post_step(x)``."""
 
 DEFAULT_DT: float = 0.01
-"""Pas de temps physique par défaut [s] (100 Hz)."""
+"""Default physics time step [s] (100 Hz)."""
 
 
 # --------------------------------------------------------------------------
-# Pas d'intégration
+# Integration steps
 # --------------------------------------------------------------------------
 def euler_step(f: Dynamics, t: float, x: Vec, u: Vec, dt: float) -> Vec:
-    """Un pas d'Euler explicite (ordre 1). Réservé aux tests et comparaisons."""
+    """One explicit Euler step (order 1). Reserved for tests and comparisons."""
     return x + dt * f(t, x, u)
 
 
 def rk4_step(f: Dynamics, t: float, x: Vec, u: Vec, dt: float) -> Vec:
-    """Un pas de Runge-Kutta classique d'ordre 4 (intégrateur par défaut du projet)."""
+    """One classical 4th-order Runge-Kutta step (the project's default integrator)."""
     half = 0.5 * dt
     k1 = f(t, x, u)
     k2 = f(t + half, x + half * k1, u)
@@ -62,30 +62,30 @@ INTEGRATORS: dict[str, Callable[[Dynamics, float, Vec, Vec, float], Vec]] = {
 
 
 # --------------------------------------------------------------------------
-# Rapport entre fréquence physique et fréquence de décision
+# Ratio between physics rate and decision rate
 # --------------------------------------------------------------------------
 def substeps_per_control(dt: float, control_dt: float) -> int:
-    """Nombre de pas physiques par décision du contrôleur (*frame skip*).
+    """Number of physics steps per controller decision (*frame skip*).
 
     Raises:
-        ValueError: si ``control_dt`` n'est pas un multiple entier de ``dt``.
+        ValueError: if ``control_dt`` is not an integer multiple of ``dt``.
     """
     ratio = control_dt / dt
     n = round(ratio)
     if n < 1 or not math.isclose(ratio, n, rel_tol=0.0, abs_tol=1e-9):
         raise ValueError(
-            f"control_dt ({control_dt}) doit être un multiple entier de dt ({dt}), ratio={ratio}"
+            f"control_dt ({control_dt}) must be an integer multiple of dt ({dt}), ratio={ratio}"
         )
     return n
 
 
 # --------------------------------------------------------------------------
-# Boucle de simulation
+# Simulation loop
 # --------------------------------------------------------------------------
 @dataclass
 class SimResult:
-    """Historique d'une simulation. ``x[k]`` est l'état à ``t[k]`` ; ``u[k]`` la commande
-    appliquée entre ``t[k]`` et ``t[k+1]`` (la dernière ligne répète la précédente)."""
+    """History of a simulation. ``x[k]`` is the state at ``t[k]``; ``u[k]`` the control
+    applied between ``t[k]`` and ``t[k+1]`` (the last row repeats the previous one)."""
 
     t: Vec
     x: Vec
@@ -105,29 +105,29 @@ def simulate(
     post_step: PostStep | None = None,
     t0: float = 0.0,
 ) -> SimResult:
-    """Simule ẋ = f(t, x, u) de ``t0`` à ``t_end`` à pas fixe.
+    """Simulate ẋ = f(t, x, u) from ``t0`` to ``t_end`` with a fixed step.
 
     Args:
-        f: dynamique ``f(t, x, u)``.
-        x0: état initial.
-        t_end: instant final [s].
-        dt: pas physique [s].
-        controller: loi de commande ``u = controller(t, x)``. Si ``None``, ``u_const`` est utilisé.
-        u_const: commande constante (vecteur vide par défaut).
-        control_dt: période de décision du contrôleur [s] (défaut : ``dt``). Doit être un
-            multiple de ``dt`` ; la commande est maintenue entre deux décisions.
-        method: ``"rk4"`` (défaut) ou ``"euler"``.
-        post_step: fonction appliquée à l'état après chaque pas (ex. normaliser le quaternion).
-        t0: instant initial [s].
+        f: dynamics ``f(t, x, u)``.
+        x0: initial state.
+        t_end: final time [s].
+        dt: physics step [s].
+        controller: control law ``u = controller(t, x)``. If ``None``, ``u_const`` is used.
+        u_const: constant control (empty vector by default).
+        control_dt: controller decision period [s] (default: ``dt``). Must be a
+            multiple of ``dt``; the control is held between two decisions.
+        method: ``"rk4"`` (default) or ``"euler"``.
+        post_step: function applied to the state after each step (e.g. normalize the quaternion).
+        t0: initial time [s].
 
     Returns:
-        ``SimResult`` avec ``n_steps + 1`` échantillons.
+        ``SimResult`` with ``n_steps + 1`` samples.
     """
     step = INTEGRATORS[method]
     n_sub = substeps_per_control(dt, control_dt if control_dt is not None else dt)
     n_steps = round((t_end - t0) / dt)
     if n_steps < 1:
-        raise ValueError("t_end doit être supérieur à t0 d'au moins un pas dt.")
+        raise ValueError("t_end must exceed t0 by at least one step dt.")
 
     x = np.asarray(x0, dtype=np.float64).copy()
     u = np.zeros(0) if u_const is None else np.asarray(u_const, dtype=np.float64)

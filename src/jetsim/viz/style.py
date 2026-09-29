@@ -1,7 +1,6 @@
-"""Style graphique commun aux tracés du projet (palette validée, encre neutre, grille discrète).
+"""Shared plotting style for the project's figures (validated palette, neutral ink, subtle grid).
 
-Les séries prennent les couleurs de ``SERIES`` **dans l'ordre**, jamais recyclées :
-au-delà de trois courbes sur un même graphique, mieux vaut séparer en plusieurs graphiques.
+
 """
 
 from __future__ import annotations

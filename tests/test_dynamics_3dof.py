@@ -1,4 +1,4 @@
-"""Validation physique du modèle point-masse (phase 2)."""
+"""Physical validation of the point-mass model (phase 2)."""
 
 import math
 
@@ -31,13 +31,13 @@ def ac() -> PointMassAircraft:
 
 
 def run(ac, x0, u, t_end, dt=0.01):
-    """Simule avec une commande constante ou une loi u(t, x)."""
+    """Simulate with a constant control or a law u(t, x)."""
     kwargs = {"controller": u} if callable(u) else {"u_const": np.asarray(u, float)}
     return simulate(ac.derivatives, x0, t_end, dt=dt, post_step=ac.post_step, **kwargs)
 
 
 # --------------------------------------------------------------------------
-# Construction et conventions
+# Construction and conventions
 # --------------------------------------------------------------------------
 def test_make_state_roundtrip(ac):
     x = ac.make_state(altitude=5000, airspeed=200, gamma=0.1, heading=1.2, bank=0.3)
@@ -48,16 +48,16 @@ def test_make_state_roundtrip(ac):
 
 
 def test_velocity_direction_matches_heading_and_gamma(ac):
-    gamma, chi = 10 * DEG, 90 * DEG  # montée cap Est
+    gamma, chi = 10 * DEG, 90 * DEG  # climbing, heading East
     x = ac.make_state(altitude=3000, airspeed=200, gamma=gamma, heading=chi, power=0.8)
     dx = ac.derivatives(0.0, x, np.array([0.8, 0.0, 0.0]))
-    assert dx[0] == pytest.approx(0.0, abs=1e-9)  # pas de déplacement Nord
-    assert dx[1] == pytest.approx(200 * math.cos(gamma))  # vers l'Est
-    assert dx[2] == pytest.approx(200 * math.sin(gamma))  # altitude qui augmente
+    assert dx[0] == pytest.approx(0.0, abs=1e-9)  # no northward motion
+    assert dx[1] == pytest.approx(200 * math.cos(gamma))  # eastward
+    assert dx[2] == pytest.approx(200 * math.sin(gamma))  # altitude increasing
 
 
 # --------------------------------------------------------------------------
-# Équilibres
+# Trim points
 # --------------------------------------------------------------------------
 @pytest.mark.parametrize(("h", "v"), [(0, 170), (3000, 263), (6000, 250), (11000, 472)])
 def test_level_flight_trim_is_steady(ac, h, v):
@@ -70,13 +70,13 @@ def test_level_flight_trim_is_steady(ac, h, v):
 
 
 def test_steady_climb_trim(ac):
-    """Montée rectiligne à pente constante : équilibre exact au point de départ.
-    (Sur une longue durée la vitesse dérive, car l'air se raréfie pendant la montée.)"""
+    """Straight climb at constant flight-path angle: exact equilibrium at the starting point.
+    (Over a long duration the speed drifts, since the air thins during the climb.)"""
     gamma = 15 * DEG
     x0, u = ac.trimmed_state(2000, 250, gamma=gamma)
     dx = ac.derivatives(0.0, x0, u)
     assert dx[V] == pytest.approx(0.0, abs=1e-9)
-    assert np.linalg.norm(dx[QUAT]) == pytest.approx(0.0, abs=1e-9)  # trajectoire rectiligne
+    assert np.linalg.norm(dx[QUAT]) == pytest.approx(0.0, abs=1e-9)  # straight flight path
     assert dx[H] == pytest.approx(250 * math.sin(gamma))
     res = run(ac, x0, u, 3.0)
     assert res.x[-1, V] == pytest.approx(250, abs=0.2)
@@ -84,7 +84,7 @@ def test_steady_climb_trim(ac):
 
 @pytest.mark.parametrize("n", [2.0, 4.0, 6.0])
 def test_level_turn_rate_matches_theory(ac, n):
-    """Virage stabilisé : ω = g·√(n² − 1)/V, altitude et vitesse constantes."""
+    """Steady turn: ω = g·√(n² − 1)/V, constant altitude and speed."""
     v = 263.0
     x0, u = ac.trimmed_state(3000, v, load_factor=n)
     fd = ac.flight_data(x0)
@@ -102,19 +102,19 @@ def test_level_turn_rate_matches_theory(ac, n):
 
 
 def test_trim_errors(ac):
-    with pytest.raises(TrimError, match="insuffisante"):
-        ac.trim(11_000, 700)  # Mach 2.4 : au-delà de la poussée disponible
-    with pytest.raises(TrimError, match="incidence"):
-        ac.trim(0, 40)  # trop lent : α > α_max
-    with pytest.raises(TrimError, match="limites"):
+    with pytest.raises(TrimError, match="Insufficient thrust"):
+        ac.trim(11_000, 700)  # Mach 2.4: beyond the available thrust
+    with pytest.raises(TrimError, match="angle of attack"):
+        ac.trim(0, 40)  # too slow: α > α_max
+    with pytest.raises(TrimError, match="limits"):
         ac.trim(3000, 250, load_factor=12)
 
 
 # --------------------------------------------------------------------------
-# Conservation de l'énergie : Ė = Ps pour n'importe quelle manœuvre
+# Energy conservation: Ė = Ps for any maneuver
 # --------------------------------------------------------------------------
 def test_energy_equation_holds_during_maneuver(ac):
-    """E = h + V²/2g varie exactement de ∫ V·(T·cos α − D)/(m·g) dt (portance ⊥ vitesse)."""
+    """E = h + V²/2g changes by exactly ∫ V·(T·cos α − D)/(m·g) dt (lift ⊥ velocity)."""
     x0, _ = ac.trimmed_state(4000, 230)
 
     def pilot(t, _x):
@@ -129,7 +129,7 @@ def test_energy_equation_holds_during_maneuver(ac):
 
 
 def test_no_drag_no_thrust_conserves_energy(ac, monkeypatch):
-    """Sans traînée ni poussée, l'énergie mécanique est conservée (loop libre)."""
+    """Without drag or thrust, mechanical energy is conserved (free loop)."""
     monkeypatch.setattr(ac.aero, "cd", lambda cl, mach: 0.0)
     monkeypatch.setattr(ac.engine, "thrust", lambda power, rho, mach: 0.0)
     x0 = ac.make_state(altitude=5000, airspeed=250, alpha=5 * DEG, power=0.0)
@@ -139,28 +139,28 @@ def test_no_drag_no_thrust_conserves_energy(ac, monkeypatch):
 
 
 # --------------------------------------------------------------------------
-# Manœuvres et limites
+# Maneuvers and limits
 # --------------------------------------------------------------------------
 def test_full_loop_through_vertical(ac):
-    """Looping plein gaz : passe à la verticale puis sur le dos, sans singularité."""
+    """Full-power loop: goes through the vertical then inverted, without singularity."""
     x0, _ = ac.trimmed_state(3000, 280)
     res = run(ac, x0, [1.0, 25 * DEG, 0.0], 25.0)
     data = [ac.flight_data(x) for x in res.x]
     gammas = np.array([d.gamma for d in data])
     assert np.all(np.isfinite(res.x))
-    assert gammas.max() > 85 * DEG  # nez à la verticale
+    assert gammas.max() > 85 * DEG  # nose vertical
     np.testing.assert_allclose(np.linalg.norm(res.x[:, QUAT], axis=1), 1.0, atol=1e-12)
-    # au sommet (altitude max), l'avion est sur le dos, pente ≈ 0, cap inversé
+    # at the top (max altitude), the aircraft is inverted, flight-path angle ≈ 0, heading reversed
     top = int(np.argmax(res.x[:, H]))
     assert abs(data[top].bank) > 170 * DEG
     assert abs(data[top].gamma) < 5 * DEG
     assert abs(wrap_angle(data[top].heading - math.pi)) < 1 * DEG
-    # puis redescente nez vers le bas : le looping se referme
+    # then descends nose down: the loop closes
     assert gammas.min() < -80 * DEG
 
 
 def test_g_limiter(ac):
-    """Commande d'incidence max à grande vitesse : le facteur de charge reste ≤ 9 g."""
+    """Max angle-of-attack command at high speed: load factor stays ≤ 9 g."""
     x0, _ = ac.trimmed_state(2000, 320)
     res = run(ac, x0, [1.0, 25 * DEG, 0.0], 6.0)
     n = np.array([ac.flight_data(x).load_factor for x in res.x])
@@ -182,8 +182,8 @@ def test_alpha_limit_at_low_speed(ac):
 
 
 def test_roll_response_and_rate_limit(ac):
-    """Taux de roulis commandé au-delà de la limite : saturé à 240°/s après la montée en
-    régime (τ = 0.2 s). En 1.5 s de palier incliné, μ tourne d'environ 300°."""
+    """Roll rate commanded beyond the limit: saturated at 240°/s after spin-up
+    (τ = 0.2 s). In 1.5 s of banked level flight, μ rotates by about 300°."""
     x0, _ = ac.trimmed_state(5000, 250)
     res = run(ac, x0, [0.8, 2 * DEG, 10.0], 1.5)
     assert res.x[-1, 9] == pytest.approx(240 * DEG, rel=1e-2)
@@ -201,34 +201,34 @@ def test_engine_lag_in_flight(ac):
 
 
 def test_ceiling_is_plausible(ac):
-    """Plafond (taux de montée max = 0.5 m/s) entre 15 et 18.5 km.
-    Le plafond publié du F-16 (≈ 15.2 km, 50 000 ft) est une limite opérationnelle ; le
-    plafond aérodynamique du modèle est un peu plus haut (≈ 17–18 km)."""
+    """Ceiling (max rate of climb = 0.5 m/s) between 15 and 18.5 km.
+    The published F-16 ceiling (≈ 15.2 km, 50,000 ft) is an operational limit; the
+    model's aerodynamic ceiling is somewhat higher (≈ 17–18 km)."""
     assert 15_000 < perf.ceiling(ac) < 18_500
 
 
 def test_flight_envelope_is_plausible(ac):
-    """Ordres de grandeur publics : ≈ Mach 2 en altitude, ≈ Mach 1.2–1.4 au niveau de la mer."""
+    """Public orders of magnitude: ≈ Mach 2 at altitude, ≈ Mach 1.2–1.4 at sea level."""
     v_min_sl, v_max_sl = perf.level_speed_range(ac, 0.0)
     assert 1.1 < v_max_sl / perf.speed_of_sound(0.0) < 1.5
-    assert v_min_sl < 70  # la vitesse mini est bornée par α_max, pas par la poussée
+    assert v_min_sl < 70  # min speed is bounded by α_max, not by thrust
     _, v_max_11 = perf.level_speed_range(ac, 11_000.0)
     assert 1.8 < v_max_11 / perf.speed_of_sound(11_000.0) < 2.2
-    assert 200 < perf.max_rate_of_climb(ac, 0.0) < 400  # ≈ 250–300 m/s pleine PC
+    assert 200 < perf.max_rate_of_climb(ac, 0.0) < 400  # ≈ 250–300 m/s full AB
 
 
 def test_turn_performance_is_plausible(ac):
-    """Virage soutenu F-16 : de l'ordre de 15–20 °/s à basse altitude vers Mach 0.8."""
+    """F-16 sustained turn: on the order of 15–20 °/s at low altitude around Mach 0.8."""
     v = 0.8 * perf.speed_of_sound(3000)
     sus = perf.sustained_turn(ac, 3000, v)
     inst = perf.instantaneous_turn(ac, 3000, v)
     assert 13 < math.degrees(sus.turn_rate) < 22
-    assert inst.load_factor == pytest.approx(9.0)  # limité par n_max à cette vitesse
+    assert inst.load_factor == pytest.approx(9.0)  # limited by n_max at this speed
     assert inst.turn_rate > sus.turn_rate
 
 
 def test_robust_at_very_low_speed(ac):
-    """Chandelle jusqu'à vitesse quasi nulle : pas de NaN (la fin d'épisode gérera ce cas)."""
+    """Zoom climb to near-zero speed: no NaN (episode termination will handle this case)."""
     x0 = ac.make_state(altitude=5000, airspeed=40, gamma=89 * DEG, power=0.0)
     res = run(ac, x0, [0.0, 0.0, 0.0], 15.0)
     assert np.all(np.isfinite(res.x))

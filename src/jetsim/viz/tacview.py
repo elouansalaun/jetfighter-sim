@@ -1,7 +1,7 @@
-"""Export au format Tacview ACMI 2.2 (texte), pour revoir les vols en 3D.
+"""Export to the Tacview ACMI 2.2 format (text), to review flights in 3D.
 
-Tacview (gratuit en lecture) affiche l'avion sur un globe avec son attitude, sa trajectoire
-et ses paramètres. Le format est du texte :
+Tacview (free for playback) shows the aircraft on a globe with its attitude, trajectory
+and parameters. The format is text:
 
     FileType=text/acmi/tacview
     FileVersion=2.2
@@ -9,17 +9,17 @@ et ses paramètres. Le format est du texte :
     0,ReferenceLongitude=-6
     0,ReferenceLatitude=46
     #0.00
-    101,T=lon|lat|alt|roulis|tangage|lacet,Name=F-16C,Type=Air+FixedWing,...
+    101,T=lon|lat|alt|roll|pitch|yaw,Name=F-16C,Type=Air+FixedWing,...
     #0.10
     101,T=...
 
-* les longitude et latitude de ``T=`` sont des **écarts** aux valeurs de référence ;
-* altitude en mètres, angles en degrés (roulis positif à droite, tangage positif à cabrer,
-  lacet dans le sens horaire depuis le Nord : les conventions du projet) ;
-* un identifiant hexadécimal par objet : on pourra ajouter le missile en phase 9.
+* the longitude and latitude in ``T=`` are offsets from the reference values;
+* altitude in meters, angles in degrees (roll positive right, pitch positive nose up,
+  yaw clockwise from North: the project's conventions);
+* one hexadecimal identifier per object: the missile can be added in phase 9.
 
-Le monde du projet est plat (repère NED local) : on le « pose » autour d'un point de
-référence, par défaut au-dessus de l'Atlantique pour ne pas heurter de relief dans Tacview.
+The project's world is flat (local NED frame): it is "placed" around a
+reference point, by default over the Atlantic so as not to hit terrain in Tacview.
 """
 
 from __future__ import annotations
@@ -40,7 +40,7 @@ def _escape(text: str) -> str:
 
 
 def _num(value: float, digits: int = 3) -> str:
-    """Nombre compact : zéros inutiles retirés, jamais « -0 »."""
+    """Compact number: useless zeros removed, never "-0"."""
     if not math.isfinite(value):
         return "0"
     text = f"{value:.{digits}f}".rstrip("0").rstrip(".")
@@ -48,14 +48,14 @@ def _num(value: float, digits: int = 3) -> str:
 
 
 def _heading_deg(yaw: float) -> float:
-    """Cap en degrés dans [0, 360[ (évite « 360 » après arrondi)."""
+    """Heading in degrees in [0, 360) (avoids "360" after rounding)."""
     deg = math.degrees(yaw) % 360.0
     return 0.0 if deg >= 359.995 else deg
 
 
 @dataclass
 class AcmiWriter:
-    """Construit un fichier ACMI objet par objet et image par image."""
+    """Build an ACMI file object by object and frame by frame."""
 
     title: str = "jetfighter-sim"
     reference_latitude: float = 46.0
@@ -78,7 +78,7 @@ class AcmiWriter:
         coalition: str = "Allies",
         pilot: str | None = None,
     ) -> None:
-        """Déclare un objet ; ses propriétés fixes sont écrites à sa première apparition."""
+        """Declare an object; its fixed properties are written on its first appearance."""
         props = [f"Name={_escape(name)}", f"Type={type_tags}", f"Color={color}",
                  f"Coalition={coalition}"]  # fmt: skip
         if pilot:
@@ -101,7 +101,7 @@ class AcmiWriter:
         yaw: float,
         **properties: float,
     ) -> None:
-        """Position (m, repère NED local) et attitude (rad) d'un objet à l'instant t."""
+        """Position (m, local NED frame) and attitude (rad) of an object at time t."""
         lat0 = math.radians(self.reference_latitude)
         dlat = north / EARTH_RADIUS * RAD_TO_DEG
         dlon = east / (EARTH_RADIUS * math.cos(lat0)) * RAD_TO_DEG
@@ -120,7 +120,7 @@ class AcmiWriter:
         self._line(t, f"-{object_id:x}")
 
     def event(self, t: float, kind: str, object_ids: tuple[int, ...] = (), text: str = "") -> None:
-        """Événement Tacview : Message, Bookmark, Destroyed, LeftArea, Timeout…"""
+        """Tacview event: Message, Bookmark, Destroyed, LeftArea, Timeout…"""
         ids = "|".join(f"{i:x}" for i in object_ids)
         body = "|".join(p for p in (kind, ids, _escape(text)) if p)
         self._line(t, f"0,Event={body}")
@@ -164,13 +164,13 @@ def export_recording(
     color: str = "Blue",
     write: bool = True,
 ) -> Path:
-    """Exporte un vol enregistré vers un fichier ``.acmi`` lisible par Tacview.
+    """Export a recorded flight to a ``.acmi`` file readable by Tacview.
 
-    Pour mettre plusieurs vols dans le même fichier (agent et pilote automatique côte à
-    côte, par exemple), passer le même ``writer`` avec des ``object_id`` différents et
-    ``write=False`` sauf pour le dernier.
+    To put several flights in the same file (agent and autopilot side by
+    side, for example), pass the same ``writer`` with different ``object_id`` values and
+    ``write=False`` except for the last one.
     """
-    w = writer or AcmiWriter(title=title or f"Vol {rec.model_type.upper()}")
+    w = writer or AcmiWriter(title=title or f"Flight {rec.model_type.upper()}")
     w.add_object(object_id, name=name, type_tags="Air+FixedWing", pilot=pilot, color=color)
     ins = rec.instruments
     for k, t in enumerate(rec.t):
@@ -192,7 +192,7 @@ def export_recording(
             Throttle=float(ins["power"][k]),
         )
     for t, message in rec.events:
-        kind = "Destroyed" if "sol" in message else "Message"
+        kind = "Destroyed" if "ground" in message else "Message"
         w.event(t, kind, (object_id,), message)
     return w.write(path) if write else Path(path)
 
@@ -200,7 +200,7 @@ def export_recording(
 def add_waypoints(
     writer: AcmiWriter, waypoints: list[tuple[float, float, float]], first_id: int = 0x201
 ) -> None:
-    """Ajoute des points de passage (nord, est, altitude) comme objets fixes."""
+    """Add waypoints (north, east, altitude) as static objects."""
     for k, (n, e, h) in enumerate(waypoints):
         oid = first_id + k
         writer.add_object(oid, name=f"WP{k + 1}", type_tags="Navaid+Static+Waypoint",

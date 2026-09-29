@@ -1,17 +1,15 @@
-"""Démonstration de la phase 6 : pilote automatique et commandes de vol électriques.
+"""Phase 6 demonstration: autopilot and fly-by-wire flight controls.
 
-1. **Mission** volée par le pilote automatique avec les deux modèles (mêmes consignes) :
-   * 0–60 s    : montée à 4000 m, cap 090, 230 m/s ;
-   * 60–100 s  : virage en palier à 4 g (inclinaison imposée), 250 m/s ;
-   * 100–180 s : retour cap 000, descente à 3000 m, 200 m/s.
-2. **Réponses indicielles** des commandes de vol électriques 6-DOF (n_z et taux de roulis) à
-   trois points de vol, avec l'avion stable (x_cg = 0.30) et instable (x_cg = 0.35).
+1. Mission flown by the autopilot with both models (same setpoints):
+   * 0–60 s    : climb to 4000 m, heading 090, 230 m/s;
+   * 60–100 s  : 4 g level turn (imposed bank angle), 250 m/s;
+   * 100–180 s : back to heading 000, descent to 3000 m, 200 m/s.
+2. Step responses of the 6-DOF fly-by-wire flight controls (n_z and roll rate) at
+   three flight points, with the aircraft stable (x_cg = 0.30) and unstable (x_cg = 0.35).
 
-Sorties dans ``results/`` : ``phase6_mission.png``, ``phase6_fbw.png`` et
+Outputs in ``results/``: ``phase6_mission.png``, ``phase6_fbw.png`` and
 ``flights/phase6_mission_6dof.acmi`` (Tacview).
 
-Usage :
-    python scripts/phase6_autopilot.py
 """
 
 from __future__ import annotations
@@ -36,7 +34,7 @@ from jetsim.viz.style import GRID, INK, INK_2, SERIES, apply_style
 from jetsim.viz.tacview import export_recording
 
 DEG = math.pi / 180
-DT = 0.02  # boucle de commande 50 Hz (2 pas physiques)
+DT = 0.02  # 50 Hz control loop (2 physics steps)
 OUT = Path("results")
 
 
@@ -73,9 +71,9 @@ def fly_mission(kind: str, t_end: float = 180.0):
 
 
 def _no_wrap(deg: np.ndarray) -> np.ndarray:
-    """Coupe la courbe (NaN) au passage 360° -> 0° pour éviter un trait vertical."""
+    """Break the curve (NaN) at the 360° -> 0° crossing to avoid a vertical line."""
     out = deg.astype(float).copy()
-    out[out > 359.5] -= 360.0  # −0.0° s'affiche 360° : on le ramène à 0
+    out[out > 359.5] -= 360.0  # −0.0° displays as 360°: bring it back to 0
     jumps = np.nonzero(np.abs(np.diff(out)) > 180)[0]
     out[jumps + 1] = np.nan
     return out
@@ -98,19 +96,19 @@ def plot_mission(flights: dict) -> None:
         ax[2].plot(rec.t, ins["tas"], color=color, label=label)
         ax[3].plot(rec.t, ins["nz"], color=color, label=label)
     for a, y in ((ax[0], alt_t), (ax[1], _no_wrap(hdg_t % 360)), (ax[2], spd_t)):
-        a.plot(t, y, color=INK_2, linewidth=1.2, linestyle=(0, (4, 3)), label="consigne")
+        a.plot(t, y, color=INK_2, linewidth=1.2, linestyle=(0, (4, 3)), label="setpoint")
     for a in ax:
         a.axvspan(60, 100, color=GRID, alpha=0.6, linewidth=0)
-    ax[3].annotate("virage à 4 g", (80, 4.05), ha="center", color=INK, fontsize=9)
-    titles = [("Altitude", "[m]"), ("Route", "[°]"), ("Vitesse vraie", "[m/s]"),
-              ("Facteur de charge", "[g]")]  # fmt: skip
+    ax[3].annotate("4 g turn", (80, 4.05), ha="center", color=INK, fontsize=9)
+    titles = [("Altitude", "[m]"), ("Course", "[°]"), ("True airspeed", "[m/s]"),
+              ("Load factor", "[g]")]  # fmt: skip
     for a, (title, unit) in zip(ax, titles, strict=True):
         a.set_title(title)
         a.set_ylabel(unit)
     ax[0].legend(loc="lower right")
     for a in axes[-1]:
-        a.set_xlabel("Temps [s]")
-    fig.suptitle("Pilote automatique : même mission, modèles 3-DOF et 6-DOF", color=INK,
+        a.set_xlabel("Time [s]")
+    fig.suptitle("Autopilot: same mission, 3-DOF and 6-DOF models", color=INK,
                  fontsize=13, fontweight="bold", x=0.01, ha="left")  # fmt: skip
     fig.savefig(OUT / "phase6_mission.png", dpi=130)
 
@@ -149,16 +147,16 @@ def plot_fbw() -> None:
             axes[0, col].plot(r[:, 0], r[:, 1], color=color, label=label)
             r = step_response(xcg, h, v, p_step)
             axes[1, col].plot(r[:, 0], r[:, 2], color=color, label=label)
-        stab = "stable" if xcg < 0.33 else "instable seul"
-        axes[0, col].set_title(f"Échelon de n_z 1 → 4 g — x_cg = {xcg:.2f} ({stab})")
-        axes[1, col].set_title(f"Échelon de taux de roulis 0 → 90°/s — x_cg = {xcg:.2f}")
+        stab = "stable" if xcg < 0.33 else "unstable on its own"
+        axes[0, col].set_title(f"n_z step 1 → 4 g — x_cg = {xcg:.2f} ({stab})")
+        axes[1, col].set_title(f"Roll-rate step 0 → 90°/s — x_cg = {xcg:.2f}")
         axes[0, col].set_ylabel("n_z [g]")
         axes[1, col].set_ylabel("p [°/s]")
-        axes[1, col].set_xlabel("Temps [s]")
+        axes[1, col].set_xlabel("Time [s]")
         for row, target in ((0, 4.0), (1, 90.0)):
             axes[row, col].axhline(target, color=INK_2, linewidth=1, linestyle=(0, (4, 3)))
     axes[0, 0].legend(loc="lower right")
-    fig.suptitle("Commandes de vol électriques du 6-DOF : réponses indicielles", color=INK,
+    fig.suptitle("6-DOF fly-by-wire flight controls: step responses", color=INK,
                  fontsize=13, fontweight="bold", x=0.01, ha="left")  # fmt: skip
     fig.savefig(OUT / "phase6_fbw.png", dpi=130)
 
@@ -168,15 +166,15 @@ def main() -> None:
     flights = {"3-DOF": fly_mission("3dof"), "6-DOF": fly_mission("6dof")}
     plot_mission(flights)
     export_recording(flights["6-DOF"], OUT / "flights" / "phase6_mission_6dof.acmi",
-                     pilot="Pilote automatique", title="Mission pilote automatique")  # fmt: skip
+                     pilot="Autopilot", title="Autopilot mission")  # fmt: skip
     plot_fbw()
 
-    print(f"{'':8}{'alt. finale':>12}{'route finale':>14}{'vitesse finale':>16}{'n_z max':>9}")
+    print(f"{'':8}{'final alt.':>12}{'final course':>14}{'final speed':>16}{'max n_z':>9}")
     for name, rec in flights.items():
         ins = rec.instruments
         print(f"{name:8}{ins['altitude'][-1]:10.0f} m{math.degrees(ins['course'][-1]) % 360:12.1f}°"
               f"{ins['tas'][-1]:13.1f} m/s{ins['nz'].max():9.2f}")  # fmt: skip
-    print(f"Figures : {OUT}/phase6_mission.png, {OUT}/phase6_fbw.png")
+    print(f"Figures: {OUT}/phase6_mission.png, {OUT}/phase6_fbw.png")
 
 
 if __name__ == "__main__":

@@ -1,19 +1,19 @@
-"""Primitives géométriques des manœuvres d'évitement classiques (utilisées en phase 10).
+"""Geometric primitives of classical evasive maneuvers (used in phase 10).
 
-Ce sont les références « scriptées » auxquelles l'agent RL sera comparé. Face à une menace
-dont on connaît le **gisement** (direction de la menace vue de l'avion, depuis le Nord) :
+These are the "scripted" baselines the RL agent will be compared against. Facing a threat
+whose bearing is known (direction of the threat as seen from the aircraft, from North):
 
-* **mise en travers** (*beam*) : voler perpendiculairement à la ligne de visée. La vitesse
-  de rapprochement devient faible, ce qui gêne les autodirecteurs Doppler et oblige le
-  missile à virer ;
-* **fuite** (*drag*) : tourner le dos à la menace, pour allonger la poursuite et épuiser
-  l'énergie du missile ;
-* **virage de dernière seconde** (*break turn*) : virage au facteur de charge maximal, au
-  dernier moment, pour créer une erreur de visée que le missile, moins manœuvrant à
-  courte distance, ne peut plus rattraper.
+* beam: fly perpendicular to the line of sight. The closing velocity
+  becomes small, which hampers Doppler seekers and forces the
+  missile to turn;
+* drag: turn your back on the threat, to lengthen the chase and drain
+  the missile's energy;
+* break turn: a turn at maximum load factor, at the
+  last moment, to create an aiming error that the missile, less maneuverable at
+  short range, can no longer correct.
 
-Les deux premières fournissent un **cap** au pilote automatique ; le virage serré produit
-directement une commande de haut niveau (n_z maximal, inclinaison vers la menace).
+The first two provide a heading to the autopilot; the break turn directly
+produces a high-level command (maximum n_z, bank toward the threat).
 """
 
 from __future__ import annotations
@@ -26,25 +26,25 @@ from jetsim.control.pid import wrap_angle
 
 
 def bearing_to(own_north: float, own_east: float, north: float, east: float) -> float:
-    """Gisement vrai [rad] d'un point vu depuis l'avion (0 = Nord, π/2 = Est)."""
+    """True bearing [rad] of a point seen from the aircraft (0 = North, π/2 = East)."""
     return math.atan2(east - own_east, north - own_north)
 
 
 def relative_bearing(threat_bearing: float, heading: float) -> float:
-    """Gisement relatif ∈ [−π, π[ : > 0 si la menace est à droite."""
+    """Relative bearing ∈ [−π, π): > 0 if the threat is on the right."""
     return wrap_angle(threat_bearing - heading)
 
 
 def beam_heading(threat_bearing: float, heading: float) -> float:
-    """Cap de mise en travers : perpendiculaire à la menace, du côté le plus proche du cap
-    actuel (virage le plus court)."""
+    """Beam heading: perpendicular to the threat, on the side closest to the current
+    heading (shortest turn)."""
     options = (threat_bearing + math.pi / 2, threat_bearing - math.pi / 2)
     best = min(options, key=lambda h: abs(wrap_angle(h - heading)))
     return wrap_angle(best)
 
 
 def drag_heading(threat_bearing: float) -> float:
-    """Cap de fuite : dos à la menace."""
+    """Drag heading: back to the threat."""
     return wrap_angle(threat_bearing + math.pi)
 
 
@@ -58,8 +58,8 @@ def break_turn(
     max_roll_rate: float = math.radians(240),
     throttle: float = 1.0,
 ) -> HighLevelCommand:
-    """Virage serré **vers** la menace : inclinaison ``bank`` du côté de la menace, facteur de
-    charge ``nz`` (la boucle interne le limite à ce que permettent α_max et n_max)."""
+    """Break turn **toward** the threat: bank ``bank`` on the threat side, load factor
+    ``nz`` (the inner loop limits it to what α_max and n_max allow)."""
     side = 1.0 if relative_bearing(threat_bearing, ins.heading) >= 0 else -1.0
     bank_error = wrap_angle(side * bank - ins.bank)
     p_cmd = min(max(roll_gain * bank_error, -max_roll_rate), max_roll_rate)

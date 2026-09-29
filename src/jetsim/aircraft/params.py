@@ -1,14 +1,14 @@
-"""Paramètres avion chargés depuis un fichier YAML (``src/jetsim/data/aircraft/*.yaml``).
+"""Aircraft parameters loaded from a YAML file (``src/jetsim/data/aircraft/*.yaml``).
 
-Le YAML est en unités SI, sauf les clés suffixées ``_deg`` / ``_deg_s`` qui sont converties
-ici en radians. Le reste du code ne manipule que les dataclasses ci-dessous : changer d'avion
-revient à changer de fichier YAML.
+The YAML is in SI units, except keys suffixed ``_deg`` / ``_deg_s`` which are converted
+here to radians. The rest of the code only handles the dataclasses below: switching aircraft
+means switching YAML file.
 
 Usage ::
 
     from jetsim.aircraft.params import load_aircraft
-    p = load_aircraft("f16")          # cherche src/jetsim/data/aircraft/f16.yaml
-    p = load_aircraft("mon/fichier.yaml")
+    p = load_aircraft("f16")          # looks for src/jetsim/data/aircraft/f16.yaml
+    p = load_aircraft("my/file.yaml")
 """
 
 from __future__ import annotations
@@ -24,11 +24,11 @@ import yaml
 from jetsim.core.constants import DEG_TO_RAD
 
 DATA_DIR: Path = Path(__file__).resolve().parents[1] / "data"
-"""Données livrées avec le paquet (disponibles aussi hors installation éditable)."""
+"""Data shipped with the package (also available outside an editable install)."""
 CONFIG_DIR: Path = DATA_DIR / "aircraft"
-"""Configurations avion (``<nom>.yaml``) et tables aérodynamiques."""
+"""Aircraft configurations (``<name>.yaml``) and aerodynamic tables."""
 SENSORS_DIR: Path = DATA_DIR / "sensors"
-"""Jeux de bruits capteurs (``<nom>.yaml``)."""
+"""Sensor noise sets (``<name>.yaml``)."""
 
 
 @dataclass(frozen=True)
@@ -52,7 +52,7 @@ class MassProperties:
 
     @property
     def inertia_tensor(self) -> npt.NDArray[np.float64]:
-        """Tenseur d'inertie en repère corps (plan de symétrie xz : Ixy = Iyz = 0)."""
+        """Inertia tensor in the body frame (xz plane of symmetry: Ixy = Iyz = 0)."""
         return np.array(
             [
                 [self.Ixx, 0.0, -self.Ixz],
@@ -67,11 +67,11 @@ class PropulsionParams:
     thrust_idle_sl: float  # [N]
     thrust_mil_sl: float  # [N]
     thrust_max_sl: float  # [N]
-    mil_power: float  # position de manette du plein gaz sec, dans ]0, 1[
+    mil_power: float  # throttle position of full dry power (military), in (0, 1)
     density_exponent: float
     ram_factor_mil: float
     ram_factor_max: float
-    ram_limit: float  # poussée max / poussée statique au sol, même régime
+    ram_limit: float  # max thrust / static sea-level thrust, same power setting
     engine_time_constant: float  # [s]
 
 
@@ -88,9 +88,9 @@ class PolarAeroParams:
         n = len(self.mach)
         for name in ("clalpha_scale", "cd0", "k_induced"):
             if len(getattr(self, name)) != n:
-                raise ValueError(f"aero_polar.{name} doit avoir {n} valeurs (une par Mach).")
+                raise ValueError(f"aero_polar.{name} must have {n} values (one per Mach).")
         if any(b <= a for a, b in zip(self.mach, self.mach[1:], strict=False)):
-            raise ValueError("aero_polar.mach doit être strictement croissant.")
+            raise ValueError("aero_polar.mach must be strictly increasing.")
 
 
 @dataclass(frozen=True)
@@ -120,9 +120,9 @@ class SurfaceLimits:
 
 @dataclass(frozen=True)
 class SixDofParams:
-    tables_path: Path  # fichier des tables aéro + moteur (chemin absolu)
-    xcg_ref: float  # centrage de référence des tables [fraction de c̄]
-    xcg: float  # centrage réel [fraction de c̄]
+    tables_path: Path  # aero + engine tables file (absolute path)
+    xcg_ref: float  # reference CG position of the tables [fraction of c̄]
+    xcg: float  # actual CG position [fraction of c̄]
     actuator_time_constant: float  # [s]
 
 
@@ -140,12 +140,12 @@ class AircraftParams:
 
     @classmethod
     def from_dict(cls, d: dict[str, Any], base_dir: Path | None = None) -> AircraftParams:
-        """Construit les paramètres ; ``base_dir`` sert à résoudre les fichiers annexes."""
+        """Build the parameters; ``base_dir`` is used to resolve auxiliary files."""
         lim = d["limits"]
         pmr = d["point_mass_response"]
         ap = d["aero_polar"]
         return cls(
-            name=d.get("name", "avion"),
+            name=d.get("name", "aircraft"),
             geometry=Geometry(**d["geometry"]),
             mass=MassProperties(**d["mass"]),
             propulsion=PropulsionParams(**d["propulsion"]),
@@ -204,30 +204,30 @@ def _six_dof(d: dict[str, Any] | None, base_dir: Path | None) -> SixDofParams | 
 
 
 def load_aircraft(name_or_path: str | Path = "f16") -> AircraftParams:
-    """Charge un avion par nom (``jetsim/data/aircraft/<nom>.yaml``) ou par chemin de fichier."""
+    """Load an aircraft by name (``jetsim/data/aircraft/<name>.yaml``) or by file path."""
     path = Path(name_or_path)
     if not path.suffix:
         path = CONFIG_DIR / f"{name_or_path}.yaml"
     if not path.exists():
-        raise FileNotFoundError(f"Configuration avion introuvable : {path}")
+        raise FileNotFoundError(f"Aircraft configuration not found: {path}")
     return AircraftParams.from_yaml(path)
 
 
 # --------------------------------------------------------------------------
-# Enveloppe de vol (conditions de fin d'épisode)
+# Flight envelope (episode termination conditions)
 # --------------------------------------------------------------------------
 @dataclass(frozen=True)
 class EnvelopeLimits:
-    """Limites au-delà desquelles un vol est considéré comme perdu (fin d'épisode)."""
+    """Limits beyond which a flight is considered lost (end of episode)."""
 
-    min_altitude: float  # [m] sol
+    min_altitude: float  # [m] ground
     max_altitude: float  # [m]
-    min_airspeed: float  # [m/s] vitesse vraie
+    min_airspeed: float  # [m/s] true airspeed
     max_mach: float
-    n_max: float  # facteur de charge structural
+    n_max: float  # structural load factor
     n_min: float
     alpha_stall: float  # [rad]
-    stall_duration: float  # [s] durée tolérée au-delà de alpha_stall
+    stall_duration: float  # [s] time tolerated beyond alpha_stall
     beta_max: float  # [rad]
 
     @classmethod
@@ -246,10 +246,10 @@ class EnvelopeLimits:
 
 
 def load_envelope(name_or_path: str | Path = "f16", *, six_dof: bool = False) -> EnvelopeLimits:
-    """Limites d'enveloppe de la configuration avion (section ``envelope``).
+    """Envelope limits of the aircraft configuration (``envelope`` section).
 
-    Avec ``six_dof=True``, les valeurs de ``envelope.six_dof_overrides`` remplacent les
-    valeurs communes (le modèle 6-DOF a un domaine de validité plus étroit).
+    With ``six_dof=True``, the values in ``envelope.six_dof_overrides`` replace the
+    common values (the 6-DOF model has a narrower validity domain).
     """
     path = Path(name_or_path)
     if not path.suffix:

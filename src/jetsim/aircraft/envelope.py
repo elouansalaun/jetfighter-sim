@@ -1,25 +1,19 @@
-"""Surveillance de l'enveloppe de vol : détecte les situations qui terminent un épisode.
+"""Flight envelope monitoring: detects situations that end an episode.
 
-Les vérifications, dans l'ordre de priorité :
+Checks, in priority order:
 
-1. ``NUMERICAL``  : état non fini (NaN/inf) — divergence numérique ;
-2. ``GROUND``     : altitude sous le sol ;
-3. ``OVERLOAD``   : facteur de charge hors des limites structurales ;
-4. ``CEILING``    : altitude au-dessus du maximum ;
-5. ``LOW_SPEED``  : vitesse vraie sous le minimum ;
-6. ``OVERSPEED``  : Mach au-dessus du maximum (ou du domaine de validité du modèle) ;
-7. ``SIDESLIP``   : dérapage hors du domaine des tables ;
-8. ``STALL``      : incidence au-delà de l'incidence de décrochage **pendant plus de**
-   ``stall_duration`` secondes (un dépassement bref est toléré : c'est une manœuvre,
-   pas une perte de contrôle).
+1. ``NUMERICAL``  : non-finite state (NaN/inf) — numerical divergence;
+2. ``GROUND``     : altitude below ground;
+3. ``OVERLOAD``   : load factor outside structural limits;
+4. ``CEILING``    : altitude above the maximum;
+5. ``LOW_SPEED``  : true airspeed below the minimum;
+6. ``OVERSPEED``  : Mach above the maximum (or the model's validity domain);
+7. ``SIDESLIP``   : sideslip outside the tables' domain;
+8. ``STALL``      : angle of attack beyond the stall angle for more than
+   ``stall_duration`` seconds (a brief excursion is tolerated: it is a maneuver,
+   not a loss of control).
 
-Usage ::
 
-    monitor = EnvelopeMonitor(load_envelope("f16", six_dof=True))
-    monitor.reset()
-    violation = monitor.check(instruments, dt=0.1, state=x)
-    if violation is not None:
-        print(monitor.message)
 """
 
 from __future__ import annotations
@@ -35,18 +29,18 @@ from jetsim.aircraft.params import EnvelopeLimits
 
 
 class Violation(Enum):
-    NUMERICAL = "divergence numérique"
-    GROUND = "collision avec le sol"
-    OVERLOAD = "surcharge structurale"
-    CEILING = "plafond dépassé"
-    LOW_SPEED = "vitesse trop faible"
-    OVERSPEED = "survitesse"
-    SIDESLIP = "dérapage excessif"
-    STALL = "décrochage prolongé"
+    NUMERICAL = "numerical divergence"
+    GROUND = "ground collision"
+    OVERLOAD = "structural overload"
+    CEILING = "ceiling exceeded"
+    LOW_SPEED = "airspeed too low"
+    OVERSPEED = "overspeed"
+    SIDESLIP = "excessive sideslip"
+    STALL = "sustained stall"
 
 
 class EnvelopeMonitor:
-    """Vérifie l'enveloppe à chaque pas ; garde en mémoire la durée passée en décrochage."""
+    """Check the envelope at each step; keeps track of the time spent stalled."""
 
     def __init__(self, limits: EnvelopeLimits) -> None:
         self.limits = limits
@@ -63,25 +57,25 @@ class EnvelopeMonitor:
         dt: float,
         state: npt.NDArray[np.float64] | None = None,
     ) -> Violation | None:
-        """Renvoie la violation détectée, ou ``None`` si le vol continue.
+        """Return the detected violation, or ``None`` if the flight continues.
 
         Args:
-            ins: instruments **vrais** (pas les mesures bruitées).
-            dt: temps écoulé depuis la vérification précédente [s].
-            state: vecteur d'état brut, contrôlé pour les NaN (optionnel).
+            ins: **true** instruments (not the noisy measurements).
+            dt: time elapsed since the previous check [s].
+            state: raw state vector, checked for NaN (optional).
         """
         lim = self.limits
         values = (ins.altitude, ins.tas, ins.mach, ins.nz, ins.alpha, ins.beta)
         if (state is not None and not np.all(np.isfinite(state))) or not all(
             math.isfinite(v) for v in values
         ):
-            return self._fail(Violation.NUMERICAL, "état non fini (NaN ou infini)")
+            return self._fail(Violation.NUMERICAL, "non-finite state (NaN or infinity)")
         if ins.altitude < lim.min_altitude:
             return self._fail(Violation.GROUND, f"altitude {ins.altitude:.0f} m")
         if not lim.n_min <= ins.nz <= lim.n_max:
             return self._fail(
                 Violation.OVERLOAD,
-                f"n = {ins.nz:.1f} g hors de [{lim.n_min:.0f}, {lim.n_max:.0f}] g",
+                f"n = {ins.nz:.1f} g outside [{lim.n_min:.0f}, {lim.n_max:.0f}] g",
             )
         if ins.altitude > lim.max_altitude:
             return self._fail(Violation.CEILING, f"altitude {ins.altitude:.0f} m")
@@ -94,15 +88,15 @@ class EnvelopeMonitor:
 
         if ins.alpha > lim.alpha_stall:
             self.stall_time += dt
-            if self.stall_time > lim.stall_duration + 1e-9:  # tolérance d'arrondi
+            if self.stall_time > lim.stall_duration + 1e-9:  # rounding tolerance
                 return self._fail(
                     Violation.STALL,
-                    f"α = {math.degrees(ins.alpha):.0f}° depuis {self.stall_time:.1f} s",
+                    f"α = {math.degrees(ins.alpha):.0f}° for {self.stall_time:.1f} s",
                 )
         else:
             self.stall_time = 0.0
         return None
 
     def _fail(self, violation: Violation, detail: str) -> Violation:
-        self.message = f"{violation.value} : {detail}"
+        self.message = f"{violation.value}: {detail}"
         return violation

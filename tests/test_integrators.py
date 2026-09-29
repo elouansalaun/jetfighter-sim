@@ -1,4 +1,4 @@
-"""Validation des intégrateurs contre des solutions analytiques."""
+"""Validation of the integrators against analytical solutions."""
 
 import math
 
@@ -15,12 +15,12 @@ from jetsim.core.integrators import (
 
 
 def free_fall(_t, x, _u):
-    """x = [h, vz] (h vers le haut) : ḣ = vz, v̇z = −g."""
+    """x = [h, vz] (h upward): ḣ = vz, v̇z = −g."""
     return np.array([x[1], -G0])
 
 
 def harmonic(_t, x, u):
-    """Oscillateur harmonique x = [pos, vit], pulsation ω = u[0]."""
+    """Harmonic oscillator x = [pos, vel], angular frequency ω = u[0]."""
     w = u[0]
     return np.array([x[1], -(w**2) * x[0]])
 
@@ -38,7 +38,7 @@ def test_free_fall_exact_with_rk4():
 
 
 def test_harmonic_oscillator_rk4_accuracy_and_energy():
-    w = 2 * math.pi  # période 1 s
+    w = 2 * math.pi  # period 1 s
     res = simulate(harmonic, np.array([1.0, 0.0]), 10.0, dt=0.01, u_const=np.array([w]))
     np.testing.assert_allclose(res.x[:, 0], np.cos(w * res.t), atol=1e-4)
     energy = 0.5 * res.x[:, 1] ** 2 + 0.5 * w**2 * res.x[:, 0] ** 2
@@ -46,7 +46,7 @@ def test_harmonic_oscillator_rk4_accuracy_and_energy():
 
 
 def test_euler_is_much_worse_than_rk4():
-    """Euler explicite fait diverger l'énergie de l'oscillateur : justifie le choix de RK4."""
+    """Explicit Euler makes the oscillator's energy diverge: justifies choosing RK4."""
     w = 2 * math.pi
     x0, u = np.array([1.0, 0.0]), np.array([w])
     e = simulate(harmonic, x0, 10.0, dt=0.01, u_const=u, method="euler")
@@ -56,7 +56,7 @@ def test_euler_is_much_worse_than_rk4():
 
 @pytest.mark.parametrize(("step", "order"), [(euler_step, 1), (rk4_step, 4)])
 def test_convergence_order(step, order):
-    """Diviser dt par 2 divise l'erreur globale par 2^ordre."""
+    """Halving dt divides the global error by 2^order."""
 
     def global_error(dt):
         x = np.array([1.0])
@@ -84,9 +84,9 @@ def test_controller_zero_order_hold_and_frame_skip():
         controller=controller,
         control_dt=0.05,
     )
-    assert len(calls) == 20  # une décision toutes les 5 étapes physiques
+    assert len(calls) == 20  # one decision every 5 physics steps
     np.testing.assert_allclose(calls, np.arange(20) * 0.05, atol=1e-12)
-    # la commande est maintenue entre deux décisions
+    # the control is held between two decisions
     np.testing.assert_allclose(res.u[:5, 0], 0.0)
     np.testing.assert_allclose(res.u[5:10, 0], 0.05)
     assert res.x.shape == (101, 1)

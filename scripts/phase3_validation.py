@@ -1,18 +1,16 @@
-"""Validation du modèle 6-DOF (phase 3) : équilibres, modes propres, réponses aux gouvernes.
+"""Validation of the 6-DOF model (phase 3): trim points, eigenmodes, control-surface responses.
 
-Affiche :
-* le point d'équilibre de référence Stevens & Lewis retrouvé par le modèle ;
-* les modes propres (oscillation d'incidence, phugoïde, roulis hollandais, roulis, spirale) ;
-* la vitesse de simulation.
+Prints:
+* the Stevens & Lewis reference trim point as recovered by the model;
+* the eigenmodes (short period, phugoid, Dutch roll, roll subsidence, spiral);
+* the simulation speed.
 
-Trace (results/phase3_validation.png) quatre réponses depuis un vol stabilisé à 3000 m, 200 m/s :
-1. doublet de profondeur (incidence et assiette) ;
-2. impulsion d'ailerons (gîte) ;
-3. impulsion de direction (dérapage et gîte : roulis hollandais) ;
-4. effet du centrage : même impulsion de profondeur à x_cg = 0.30 (stable) et 0.35 (instable).
+Plots (results/phase3_validation.png) four responses from steady flight at 3000 m, 200 m/s:
+1. elevator doublet (angle of attack and pitch);
+2. aileron pulse (roll angle);
+3. rudder pulse (sideslip and roll angle: Dutch roll);
+4. CG effect: same elevator pulse at x_cg = 0.30 (stable) and 0.35 (unstable).
 
-Usage :
-    python scripts/phase3_validation.py [--show]
 """
 
 from __future__ import annotations
@@ -62,7 +60,7 @@ H0, V0 = 3000.0, 200.0
 
 
 def respond(model: d6.F16SixDof, pulse, t_end: float):
-    """Réponse à une commande ``u(t) = u_trim + pulse(t)`` depuis l'équilibre."""
+    """Response to a command ``u(t) = u_trim + pulse(t)`` from trim."""
     x0, u0 = model.trim(H0, V0)
     res = simulate(
         model.derivatives,
@@ -112,20 +110,20 @@ def label_end(ax, t, y, text, color=INK_2, dy=0):
 def plot_all(model: d6.F16SixDof, out: Path) -> None:
     fig, axes = plt.subplots(2, 2, figsize=(13, 8.5), layout="constrained")
 
-    # 1. Doublet de profondeur
+    # 1. Elevator doublet
     ax = axes[0, 0]
     t, data = respond(model, doublet(d6.ELEVATOR, -2 * DEG, 1.0, 1.0), 12.0)
     alpha = np.degrees([d.alpha for d in data])
     theta = np.degrees([d.pitch for d in data])
-    ax.plot(t, alpha, color=SERIES[0], label="incidence α")
-    ax.plot(t, theta, color=SERIES[1], label="assiette θ")
+    ax.plot(t, alpha, color=SERIES[0], label="angle of attack α")
+    ax.plot(t, theta, color=SERIES[1], label="pitch θ")
     ax.axvspan(1.0, 3.0, color=GRID, alpha=0.5, linewidth=0)
-    ax.set_title("Doublet de profondeur ±2° (1 s + 1 s)")
-    ax.set_xlabel("Temps [s]")
+    ax.set_title("Elevator doublet ±2° (1 s + 1 s)")
+    ax.set_xlabel("Time [s]")
     ax.set_ylabel("Angle [°]")
     ax.legend(loc="upper right")
 
-    # 2. Impulsion d'ailerons (δa < 0 = roulis à droite)
+    # 2. Aileron pulse (δa < 0 = roll right)
     ax = axes[0, 1]
     t, data = respond(model, pulse_on(d6.AILERON, -5 * DEG, 1.0, 2.0), 8.0)
     phi = np.degrees([d.roll for d in data])
@@ -133,25 +131,25 @@ def plot_all(model: d6.F16SixDof, out: Path) -> None:
     ax.plot(t, phi, color=SERIES[0])
     ax.axvspan(1.0, 2.0, color=GRID, alpha=0.5, linewidth=0)
     i = int(np.argmax(np.abs(p)))
-    ax.set_title(f"Impulsion d'ailerons −5° pendant 1 s (p max = {abs(p[i]):.0f}°/s)")
-    ax.set_xlabel("Temps [s]")
-    ax.set_ylabel("Gîte φ [°]")
-    label_end(ax, t, phi, "gîte φ")
+    ax.set_title(f"Aileron pulse −5° for 1 s (max p = {abs(p[i]):.0f}°/s)")
+    ax.set_xlabel("Time [s]")
+    ax.set_ylabel("Roll angle φ [°]")
+    label_end(ax, t, phi, "roll φ")
 
-    # 3. Impulsion de direction : roulis hollandais
+    # 3. Rudder pulse: Dutch roll
     ax = axes[1, 0]
     t, data = respond(model, pulse_on(d6.RUDDER, 5 * DEG, 1.0, 1.5), 12.0)
     beta = np.degrees([d.beta for d in data])
     phi = np.degrees([d.roll for d in data])
-    ax.plot(t, beta, color=SERIES[0], label="dérapage β")
-    ax.plot(t, phi, color=SERIES[1], label="gîte φ")
+    ax.plot(t, beta, color=SERIES[0], label="sideslip β")
+    ax.plot(t, phi, color=SERIES[1], label="roll φ")
     ax.axvspan(1.0, 1.5, color=GRID, alpha=0.5, linewidth=0)
-    ax.set_title("Impulsion de direction +5° pendant 0.5 s")
-    ax.set_xlabel("Temps [s]")
+    ax.set_title("Rudder pulse +5° for 0.5 s")
+    ax.set_xlabel("Time [s]")
     ax.set_ylabel("Angle [°]")
     ax.legend(loc="upper right")
 
-    # 4. Effet du centrage
+    # 4. CG effect
     ax = axes[1, 1]
     params = model.params
     for xcg, color, name in (
@@ -163,13 +161,13 @@ def plot_all(model: d6.F16SixDof, out: Path) -> None:
         alpha = np.degrees([d.alpha for d in data])
         ax.plot(t, alpha, color=color, label=name)
     ax.axvspan(1.0, 1.5, color=GRID, alpha=0.5, linewidth=0)
-    ax.set_title("Centrage : impulsion de profondeur −1° pendant 0.5 s")
-    ax.set_xlabel("Temps [s]")
-    ax.set_ylabel("Incidence α [°]")
+    ax.set_title("CG position: elevator pulse −1° for 0.5 s")
+    ax.set_xlabel("Time [s]")
+    ax.set_ylabel("Angle of attack α [°]")
     ax.legend(loc="upper left")
 
     fig.suptitle(
-        f"F-16 6-DOF : réponses depuis le vol stabilisé ({H0:.0f} m, {V0:.0f} m/s)",
+        f"F-16 6-DOF: responses from steady flight ({H0:.0f} m, {V0:.0f} m/s)",
         color=INK,
         fontsize=14,
         fontweight="bold",
@@ -178,7 +176,7 @@ def plot_all(model: d6.F16SixDof, out: Path) -> None:
     )
     out.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(out, dpi=150)
-    print(f"Figure enregistrée : {out}")
+    print(f"Figure saved: {out}")
 
 
 def main() -> None:
@@ -188,9 +186,9 @@ def main() -> None:
     args = parser.parse_args()
 
     model = d6.F16SixDof(load_aircraft("f16"))
-    print(f"Centrage x_cg = {model.xcg:.2f}\n")
+    print(f"CG position x_cg = {model.xcg:.2f}\n")
 
-    print(f"{'Point de vol':<18}{'manette':>9}{'δe [°]':>9}{'α [°]':>8}{'Mach':>7}")
+    print(f"{'Flight point':<18}{'throttle':>9}{'δe [°]':>9}{'α [°]':>8}{'Mach':>7}")
     for h, v in [(0, 153), (3000, 200), (6000, 250), (9000, 250)]:
         x, u = model.trim(h, v)
         fd = model.flight_data(x)
@@ -201,12 +199,12 @@ def main() -> None:
 
     x, u = model.trim(H0, V0)
     modes = an.flight_modes(an.linearize(model, x, u)[0])
-    print(f"\nModes propres à {H0:.0f} m, {V0:.0f} m/s :")
+    print(f"\nEigenmodes at {H0:.0f} m, {V0:.0f} m/s:")
     for m in modes.values():
         if m.eigenvalue.imag:
             print(
                 f"  {m.name:<26} ω = {m.natural_frequency:5.2f} rad/s  ζ = {m.damping:4.2f}"
-                f"  période = {m.period:5.1f} s"
+                f"  period = {m.period:5.1f} s"
             )
         else:
             print(f"  {m.name:<26} τ = {m.time_constant:6.2f} s")
@@ -216,7 +214,7 @@ def main() -> None:
     for _ in range(n):
         x = model.step(x, u)
     rate = n / (time.perf_counter() - t0)
-    print(f"\nVitesse : {rate:,.0f} pas physiques/s ({rate * 0.01:,.0f}× le temps réel)")
+    print(f"\nSpeed: {rate:,.0f} physics steps/s ({rate * 0.01:,.0f}× real time)")
 
     plot_all(model, Path(args.out))
     if args.show:

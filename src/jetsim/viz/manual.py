@@ -1,19 +1,19 @@
-"""Pilotage manuel : cœur de simulation (sans dépendance graphique) et HUD pygame.
+"""Manual flying: simulation core (no graphics dependency) and pygame HUD.
 
-Le cœur (``ManualFlight``) transforme des entrées logiques (« cabrer », « roulis à
-droite »…) ou des axes de joystick en commandes pour le modèle 3-DOF ou 6-DOF, fait avancer
-la simulation en temps réel, surveille l'enveloppe et enregistre le vol. Il est testable
-sans écran. Le rendu (``HudRenderer``) dessine un horizon artificiel et les instruments
-avec pygame.
+The core (``ManualFlight``) turns logical inputs ("pitch up", "roll
+right"…) or joystick axes into controls for the 3-DOF or 6-DOF model, advances
+the simulation in real time, monitors the envelope and records the flight. It is testable
+without a screen. The renderer (``HudRenderer``) draws an artificial horizon and the instruments
+with pygame.
 
-Lois de pilotage (manche ∈ [−1, 1], positif = cabrer / roulis à droite / lacet à droite) :
+Control laws (stick ∈ [−1, 1], positive = pitch up / roll right / yaw right):
 
-* **6-DOF** (commande directe des gouvernes) : δe = δe_trim + trim − 12°·manche_tangage,
-  δa = −15°·manche_roulis, δr = −15°·palonnier ;
-* **3-DOF** : α_cmd = α_trim + trim + 15°·manche_tangage, taux de roulis = 180°/s·manche.
+* 6-DOF (direct control-surface command): δe = δe_trim + trim − 12°·pitch_stick,
+  δa = −15°·roll_stick, δr = −15°·rudder_pedals;
+* 3-DOF: α_cmd = α_trim + trim + 15°·pitch_stick, roll rate = 180°/s·stick.
 
-Au clavier, le manche se déplace progressivement tant que la touche est enfoncée et revient
-au neutre quand on la relâche (comme un vrai manche à ressort).
+With the keyboard, the stick moves progressively while the key is held and returns
+to neutral when it is released (like a real spring-loaded stick).
 """
 
 from __future__ import annotations
@@ -43,16 +43,16 @@ INPUTS = (
 
 @dataclass
 class Stick:
-    """Position des commandes du pilote."""
+    """Pilot control positions."""
 
-    pitch: float = 0.0  # > 0 : cabrer
-    roll: float = 0.0  # > 0 : roulis à droite
-    yaw: float = 0.0  # > 0 : lacet à droite
+    pitch: float = 0.0  # > 0: pitch up
+    roll: float = 0.0  # > 0: roll right
+    yaw: float = 0.0  # > 0: yaw right
     throttle: float = 0.5
-    trim: float = 0.0  # [rad] > 0 : cabrer
+    trim: float = 0.0  # [rad] > 0: pitch up
 
-    MOVE_RATE = 2.5  # course du manche par seconde, touche enfoncée
-    RETURN_RATE = 4.0  # retour au neutre par seconde, touche relâchée
+    MOVE_RATE = 2.5  # stick travel per second, key held
+    RETURN_RATE = 4.0  # return to neutral per second, key released
     THROTTLE_RATE = 0.4
     TRIM_RATE = 1.0 * DEG
 
@@ -71,13 +71,13 @@ class Stick:
         dt: float,
         axes: tuple[float, float, float, float | None] | None = None,
     ) -> None:
-        """Met à jour le manche (clavier) ou le recopie depuis un joystick.
+        """Update the stick (keyboard) or copy it from a joystick.
 
         Args:
-            pressed: entrées logiques actives (cf. ``INPUTS``).
-            dt: durée de l'image [s].
-            axes: (roulis, tangage, lacet, manette ou None) d'un joystick, dans [−1, 1] et
-                [0, 1] ; s'ils sont fournis, ils remplacent le clavier pour ces axes.
+            pressed: active logical inputs (see ``INPUTS``).
+            dt: frame duration [s].
+            axes: (roll, pitch, yaw, throttle or None) from a joystick, in [−1, 1] and
+                [0, 1]; if provided, they replace the keyboard for those axes.
         """
         if axes is not None:
             self.roll, self.pitch, self.yaw = (float(np.clip(a, -1, 1)) for a in axes[:3])
@@ -94,7 +94,7 @@ class Stick:
 
 
 class ManualFlight:
-    """Simulation temps réel pilotée par un humain (voir le module)."""
+    """Real-time simulation flown by a human (see the module docstring)."""
 
     def __init__(
         self,
@@ -106,7 +106,7 @@ class ManualFlight:
         frame_dt: float = 0.02,
     ) -> None:
         if model_kind not in ("3dof", "6dof"):
-            raise ValueError("model_kind doit valoir '3dof' ou '6dof'.")
+            raise ValueError("model_kind must be '3dof' or '6dof'.")
         self.kind = model_kind
         self.altitude0, self.airspeed0 = altitude, airspeed
         self.physics_dt = physics_dt
@@ -121,7 +121,7 @@ class ManualFlight:
 
     # ------------------------------------------------------------------
     def reset(self) -> None:
-        """Repart en vol stabilisé ; l'enregistrement en cours est abandonné."""
+        """Restart in trimmed flight; the current recording is discarded."""
         if isinstance(self.model, d6.F16SixDof):
             self.x, self.u_trim = self.model.trim(self.altitude0, self.airspeed0)
         else:
@@ -134,12 +134,12 @@ class ManualFlight:
         self.monitor.reset()
         self.recorder = FlightRecorder(
             self.model, physics_dt=self.physics_dt, substeps=self.substeps,
-            metadata={"source": "pilotage manuel"},
+            metadata={"source": "manual flight"},
         )  # fmt: skip
         self.instruments: Instruments = read_instruments(self.model, self.x)
 
     def controls(self) -> np.ndarray:
-        """Commande du modèle à partir de la position du manche."""
+        """Model control from the stick position."""
         s, u = self.stick, self.u_trim.copy()
         u[0] = s.throttle
         if self.kind == "6dof":
@@ -156,7 +156,7 @@ class ManualFlight:
         pressed: set[str],
         axes: tuple[float, float, float, float | None] | None = None,
     ) -> None:
-        """Avance d'une image : manche, simulation, enregistrement, enveloppe."""
+        """Advance one frame: stick, simulation, recording, envelope."""
         if self.paused or self.ended:
             return
         self.stick.update(pressed, self.frame_dt, axes)
@@ -177,19 +177,19 @@ class ManualFlight:
         return self.recorder.finish() if len(self.recorder) >= 2 else None
 
     def save(self, directory: str | Path = "outputs/flights") -> dict[str, Path]:
-        """Sauvegarde le vol (.npz, .acmi Tacview, .png des courbes). Renvoie les chemins."""
+        """Save the flight (.npz, Tacview .acmi, .png of the curves). Returns the paths."""
         from jetsim.viz.plots import plot_time_series
         from jetsim.viz.tacview import export_recording
 
         rec = self.recording()
         if rec is None:
             return {}
-        stem = Path(directory) / f"manuel_{self.kind}_{datetime.now():%Y%m%d_%H%M%S}"
+        stem = Path(directory) / f"manual_{self.kind}_{datetime.now():%Y%m%d_%H%M%S}"
         paths = {
             "npz": rec.save(stem.with_suffix(".npz")),
-            "acmi": export_recording(rec, stem.with_suffix(".acmi"), pilot="Pilote humain"),
+            "acmi": export_recording(rec, stem.with_suffix(".acmi"), pilot="Human pilot"),
         }
-        fig = plot_time_series(rec, title=f"Vol manuel {self.kind.upper()}")
+        fig = plot_time_series(rec, title=f"Manual flight {self.kind.upper()}")
         paths["png"] = stem.with_suffix(".png")
         fig.savefig(paths["png"], dpi=120)
         import matplotlib.pyplot as plt
@@ -199,7 +199,7 @@ class ManualFlight:
 
 
 # ==========================================================================
-# Rendu pygame
+# pygame rendering
 # ==========================================================================
 SKY = (70, 130, 200)
 GROUND = (140, 95, 55)
@@ -210,13 +210,13 @@ PANEL = (24, 26, 30)
 DIM = (150, 150, 145)
 
 HELP = (
-    "↑/↓ piquer/cabrer   ←/→ roulis   W/X palonnier   A/Q gaz +/−   T/G trim",
-    "Espace pause   R recommencer   S sauvegarder   Échap quitter (sauvegarde)",
+    "↑/↓ pitch down/up   ←/→ roll   W/X rudder   A/Q throttle +/−   T/G trim",
+    "Space pause   R restart   S save   Esc quit (saves)",
 )
 
 
 class HudRenderer:
-    """Dessine l'horizon artificiel et les instruments sur une surface pygame."""
+    """Draw the artificial horizon and the instruments on a pygame surface."""
 
     def __init__(self, size: tuple[int, int] = (1100, 700)) -> None:
         import pygame
@@ -224,33 +224,33 @@ class HudRenderer:
         self.pg = pygame
         self.size = size
         pygame.font.init()
-        # police système avec accents, flèches et lettres grecques (repli : police pygame)
+        # system font with accents, arrows and Greek letters (fallback: pygame font)
         names = "helveticaneue,helvetica,arial,dejavusans,liberationsans"
         self.font = pygame.font.SysFont(names, 19)
         self.small = pygame.font.SysFont(names, 15)
         self.big = pygame.font.SysFont(names, 30, bold=True)
 
-    # --- utilitaires ----------------------------------------------------
+    # --- utilities ------------------------------------------------------
     def _text(self, surf: Any, text: str, pos: tuple[int, int], font: Any = None,
               color: tuple[int, int, int] = WHITE, center: bool = False) -> None:  # fmt: skip
         img = (font or self.font).render(text, True, color)
         rect = img.get_rect(center=pos) if center else img.get_rect(topleft=pos)
         surf.blit(img, rect)
 
-    # --- horizon artificiel --------------------------------------------
+    # --- artificial horizon --------------------------------------------
     def _horizon(self, surf: Any, rect: Any, ins: Instruments) -> None:
         pg = self.pg
         view = surf.subsurface(rect)
         w, h = rect.size
         cx, cy = w / 2, h / 2
-        ppd = h / 60.0  # pixels par degré de tangage (±30° visibles)
+        ppd = h / 60.0  # pixels per degree of pitch (±30° visible)
         roll, pitch = ins.roll, math.degrees(ins.pitch)
-        # vecteurs écran : le long de l'horizon et vers le haut du ciel
+        # screen vectors: along the horizon and up toward the sky
         along = (math.cos(-roll), math.sin(-roll))
         up = (math.sin(-roll), -math.cos(-roll))
 
         def point(a: float, u: float) -> tuple[float, float]:
-            # a le long de l'horizon, u vers le haut (en pixels), depuis la ligne d'horizon
+            # a along the horizon, u upward (in pixels), from the horizon line
             return (cx + along[0] * a + up[0] * (u - pitch * ppd),
                     cy + along[1] * a + up[1] * (u - pitch * ppd))  # fmt: skip
 
@@ -268,13 +268,13 @@ class HudRenderer:
             pg.draw.line(view, WHITE, p1, p2, 2 if deg > 0 else 1)
             self._text(view, f"{deg}", (int(point(half + 18, u)[0]), int(point(half + 18, u)[1])),
                        self.small, WHITE, center=True)  # fmt: skip
-        # maquette de l'avion (fixe)
+        # aircraft symbol (fixed)
         pg.draw.line(view, YELLOW, (cx - 90, cy), (cx - 30, cy), 5)
         pg.draw.line(view, YELLOW, (cx + 30, cy), (cx + 90, cy), 5)
         pg.draw.lines(view, YELLOW, False, [(cx - 30, cy), (cx - 15, cy + 15), (cx, cy),
                                             (cx + 15, cy + 15), (cx + 30, cy)], 4)  # fmt: skip
         pg.draw.circle(view, YELLOW, (int(cx), int(cy)), 3)
-        # échelle de gîte
+        # bank scale
         for deg in (-60, -45, -30, -20, -10, 0, 10, 20, 30, 45, 60):
             ang = math.radians(deg) - math.pi / 2
             r1, r2 = h * 0.42, h * 0.42 + (14 if deg % 30 == 0 else 8)
@@ -285,7 +285,7 @@ class HudRenderer:
         pg.draw.circle(view, YELLOW, (int(tip[0]), int(tip[1])), 6)
         pg.draw.rect(view, DIM, view.get_rect(), 1)
 
-    # --- panneau d'instruments -----------------------------------------
+    # --- instrument panel ----------------------------------------------
     def _panel(self, surf: Any, rect: Any, flight: ManualFlight) -> None:
         pg = self.pg
         ins, s = flight.instruments, flight.stick
@@ -296,25 +296,25 @@ class HudRenderer:
         )
         y += 38
         rows = [
-            ("Vitesse vraie", f"{ins.tas:6.0f} m/s  {ins.tas * 1.94384:4.0f} kt"),
-            ("Vitesse corrigée", f"{ins.cas:6.0f} m/s"),
+            ("True airspeed", f"{ins.tas:6.0f} m/s  {ins.tas * 1.94384:4.0f} kt"),
+            ("Calibrated airspeed", f"{ins.cas:6.0f} m/s"),
             ("Mach", f"{ins.mach:6.2f}"),
             ("Altitude", f"{ins.altitude:6.0f} m"),
-            ("Variomètre", f"{ins.vertical_speed:+6.0f} m/s"),
-            ("Cap", f"{math.degrees(ins.heading) % 360:6.0f}°"),
-            ("Incidence α", f"{math.degrees(ins.alpha):6.1f}°"),
-            ("Dérapage β", f"{math.degrees(ins.beta):6.1f}°"),
-            ("Facteur de charge", f"{ins.nz:6.1f} g"),
+            ("Vertical speed", f"{ins.vertical_speed:+6.0f} m/s"),
+            ("Heading", f"{math.degrees(ins.heading) % 360:6.0f}°"),
+            ("Angle of attack α", f"{math.degrees(ins.alpha):6.1f}°"),
+            ("Sideslip β", f"{math.degrees(ins.beta):6.1f}°"),
+            ("Load factor", f"{ins.nz:6.1f} g"),
             ("Ps", f"{ins.specific_excess_power:+6.0f} m/s"),
         ]
         for label, value in rows:
             self._text(surf, label, (x, y), self.font, DIM)
-            color = RED if (label == "Facteur de charge" and not -3 <= ins.nz <= 9) else WHITE
+            color = RED if (label == "Load factor" and not -3 <= ins.nz <= 9) else WHITE
             self._text(surf, value, (x + 170, y), self.font, color)
             y += 29
-        # manette et puissance
+        # throttle and power
         y += 8
-        self._text(surf, "Manette / puissance", (x, y), self.font, DIM)
+        self._text(surf, "Throttle / power", (x, y), self.font, DIM)
         y += 26
         bar = pg.Rect(x, y, rect.width - 40, 14)
         pg.draw.rect(surf, DIM, bar, 1)
@@ -322,8 +322,8 @@ class HudRenderer:
         power_color = RED if ins.power > 0.5 and flight.kind == "6dof" else YELLOW
         pg.draw.rect(surf, power_color, (bar.x, bar.y + 8, int(bar.width * ins.power), 6))
         y += 30
-        # position du manche
-        self._text(surf, f"Manche (trim {math.degrees(s.trim):+.1f}°)", (x, y), self.font, DIM)
+        # stick position
+        self._text(surf, f"Stick (trim {math.degrees(s.trim):+.1f}°)", (x, y), self.font, DIM)
         box = pg.Rect(x, y + 26, 110, 110)
         pg.draw.rect(surf, DIM, box, 1)
         pg.draw.line(surf, DIM, box.midtop, box.midbottom)
@@ -333,7 +333,7 @@ class HudRenderer:
         yaw_bar = pg.Rect(x + 130, y + 76, 120, 10)
         pg.draw.rect(surf, DIM, yaw_bar, 1)
         pg.draw.circle(surf, YELLOW, (yaw_bar.centerx + int(s.yaw * 58), yaw_bar.centery), 6)
-        self._text(surf, "palonnier", (x + 130, y + 92), self.small, DIM)
+        self._text(surf, "rudder", (x + 130, y + 92), self.small, DIM)
 
     def draw(self, surf: Any, flight: ManualFlight, joystick_name: str | None = None) -> None:
         pg = self.pg
@@ -345,10 +345,10 @@ class HudRenderer:
         for i, line in enumerate(HELP):
             self._text(surf, line, (14, h - 60 + 24 * i), self.small, DIM)
         if joystick_name:
-            self._text(surf, f"Joystick : {joystick_name}", (w - panel_w, h - 60), self.small, DIM)
+            self._text(surf, f"Joystick: {joystick_name}", (w - panel_w, h - 60), self.small, DIM)
         cx, cy = (w - panel_w - 20) // 2, 60
         if flight.ended:
-            self._text(surf, f"Vol terminé : {flight.message}", (cx, cy), self.big, RED, True)
-            self._text(surf, "R pour recommencer", (cx, cy + 34), self.font, WHITE, True)
+            self._text(surf, f"Flight ended: {flight.message}", (cx, cy), self.big, RED, True)
+            self._text(surf, "R to restart", (cx, cy + 34), self.font, WHITE, True)
         elif flight.paused:
             self._text(surf, "PAUSE", (cx, cy), self.big, YELLOW, True)

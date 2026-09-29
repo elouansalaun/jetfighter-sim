@@ -1,14 +1,11 @@
-"""Validation visuelle du modèle point-masse (phase 2).
+"""Visual validation of the point-mass model (phase 2).
 
-Trace trois vues du F-16 simplifié et affiche un résumé chiffré :
+Plots three views of the simplified F-16 and prints a numerical summary:
 
-1. le domaine de vol en palier (altitude × Mach), plein gaz sec et pleine PC ;
-2. le taux de virage soutenu en fonction du Mach, à trois altitudes ;
-3. un looping plein gaz (vue de profil), qui traverse la verticale sans singularité.
+1. the level-flight envelope (altitude × Mach), full dry power and full afterburner;
+2. the sustained turn rate as a function of Mach, at three altitudes;
+3. a full-power loop (side view), which passes through the vertical without singularity.
 
-Usage :
-    python scripts/phase2_performance.py            # enregistre results/phase2_performance.png
-    python scripts/phase2_performance.py --show     # et ouvre la fenêtre
 """
 
 from __future__ import annotations
@@ -26,7 +23,7 @@ from jetsim.aircraft.dynamics_3dof import PN, H, PointMassAircraft
 from jetsim.aircraft.params import load_aircraft
 from jetsim.core.integrators import simulate
 
-# Palette de référence (mode clair) : séries dans un ordre fixe, texte en encre neutre
+# Reference palette (light mode): series in a fixed order, text in neutral ink
 SURFACE = "#fcfcfb"
 INK = "#0b0b0b"
 INK_2 = "#52514e"
@@ -59,7 +56,7 @@ plt.rcParams.update(
 
 
 def envelope(ac: PointMassAircraft, power: float, altitudes: np.ndarray) -> np.ndarray:
-    """Tableau (altitude, Mach min, Mach max) du vol en palier stabilisé."""
+    """Array (altitude, min Mach, max Mach) of steady level flight."""
     rows = []
     for h in altitudes:
         rng = perf.level_speed_range(ac, float(h), power=power)
@@ -72,7 +69,7 @@ def envelope(ac: PointMassAircraft, power: float, altitudes: np.ndarray) -> np.n
 
 def plot_envelope(ax, ac: PointMassAircraft) -> None:
     altitudes = np.linspace(0, 19_000, 58)
-    for power, label, color in ((1.0, "Pleine PC", SERIES[0]), (0.77, "Plein gaz sec", SERIES[1])):
+    for power, label, color in ((1.0, "Full AB", SERIES[0]), (0.77, "Full dry power", SERIES[1])):
         env = envelope(ac, power, altitudes)
         mach = np.concatenate([env[:, 1], env[::-1, 2]])
         alt = np.concatenate([env[:, 0], env[::-1, 0]]) / 1000
@@ -81,9 +78,13 @@ def plot_envelope(ax, ac: PointMassAircraft) -> None:
             ax.fill(mach, alt, color=color, alpha=0.08, linewidth=0)
     ax.axhline(ac.params.limits.ceiling / 1000, color=INK_2, linewidth=1, linestyle=(0, (4, 3)))
     ax.text(
-        1.72, ac.params.limits.ceiling / 1000 + 0.3, "plafond publié F-16", color=INK_2, fontsize=9
+        1.72,
+        ac.params.limits.ceiling / 1000 + 0.3,
+        "published F-16 ceiling",
+        color=INK_2,
+        fontsize=9,
     )
-    ax.set_title("Domaine de vol en palier")
+    ax.set_title("Level-flight envelope")
     ax.set_xlabel("Mach")
     ax.set_ylabel("Altitude [km]")
     ax.set_xlim(0, 2.3)
@@ -110,9 +111,9 @@ def plot_turn(ax, ac: PointMassAircraft) -> None:
             color=INK,
             fontsize=9,
         )
-    ax.set_title("Taux de virage soutenu (pleine PC)")
+    ax.set_title("Sustained turn rate (full AB)")
     ax.set_xlabel("Mach")
-    ax.set_ylabel("Taux de virage [°/s]")
+    ax.set_ylabel("Turn rate [°/s]")
     ax.set_ylim(0, 26)
     ax.legend(loc="upper right")
 
@@ -126,7 +127,7 @@ def plot_loop(ax, ac: PointMassAircraft) -> None:
         u_const=np.array([1.0, math.radians(25), 0.0]),
         post_step=ac.post_step,
     )
-    # On coupe quand le vecteur vitesse a fait un tour complet dans le plan vertical
+    # Cut when the velocity vector has made a full turn in the vertical plane
     pitch_path = np.unwrap(np.arctan2(np.gradient(res.x[:, H]), np.gradient(res.x[:, PN])))
     end = int(np.searchsorted(pitch_path - pitch_path[0], 2 * math.pi)) + 1
     dist = res.x[:end, PN] / 1000
@@ -136,7 +137,7 @@ def plot_loop(ax, ac: PointMassAircraft) -> None:
     ax.plot(dist, alt, color=SERIES[0])
     ax.plot(dist[0], alt[0], "o", color=SERIES[0], markersize=8, markeredgecolor=SURFACE)
     ax.annotate(
-        "entrée 280 m/s",
+        "entry 280 m/s",
         (dist[0], alt[0]),
         xytext=(8, -14),
         textcoords="offset points",
@@ -145,7 +146,7 @@ def plot_loop(ax, ac: PointMassAircraft) -> None:
     )
     top = int(np.argmax(alt))
     ax.annotate(
-        f"sommet : {alt[top]:.2f} km, sur le dos",
+        f"top: {alt[top]:.2f} km, inverted",
         (dist[top], alt[top]),
         xytext=(0, 8),
         textcoords="offset points",
@@ -154,15 +155,15 @@ def plot_loop(ax, ac: PointMassAircraft) -> None:
         fontsize=9,
     )
     ax.annotate(
-        f"sortie après {duration:.1f} s",
+        f"exit after {duration:.1f} s",
         (dist[-1], alt[-1]),
         xytext=(8, 4),
         textcoords="offset points",
         color=INK_2,
         fontsize=9,
     )
-    ax.set_title(f"Looping plein gaz, α max (n max = {n.max():.1f} g)")
-    ax.set_xlabel("Distance vers le Nord [km]")
+    ax.set_title(f"Full-power loop, max α (max n = {n.max():.1f} g)")
+    ax.set_xlabel("Distance north [km]")
     ax.set_ylabel("Altitude [km]")
     ax.margins(y=0.12)
     ax.set_aspect("equal", adjustable="datalim")
@@ -172,17 +173,17 @@ def summary(ac: PointMassAircraft) -> None:
     a0, a11 = perf.speed_of_sound(0.0), perf.speed_of_sound(11_000.0)
     v3 = 0.8 * perf.speed_of_sound(3000.0)
     rows = [
-        ("Mach max au niveau de la mer", f"{perf.level_speed_range(ac, 0.0)[1] / a0:.2f}", "≈ 1.2"),
-        ("Mach max à 11 km", f"{perf.level_speed_range(ac, 11_000.0)[1] / a11:.2f}", "≈ 2.0"),
-        ("Taux de montée max au sol [m/s]", f"{perf.max_rate_of_climb(ac, 0.0):.0f}", "≈ 250"),
-        ("Plafond (0.5 m/s) [km]", f"{perf.ceiling(ac) / 1000:.1f}", "15.2 (opérationnel)"),
+        ("Max Mach at sea level", f"{perf.level_speed_range(ac, 0.0)[1] / a0:.2f}", "≈ 1.2"),
+        ("Max Mach at 11 km", f"{perf.level_speed_range(ac, 11_000.0)[1] / a11:.2f}", "≈ 2.0"),
+        ("Max rate of climb at sea level [m/s]", f"{perf.max_rate_of_climb(ac, 0.0):.0f}", "≈ 250"),
+        ("Ceiling (0.5 m/s) [km]", f"{perf.ceiling(ac) / 1000:.1f}", "15.2 (service)"),
         (
-            "Virage soutenu 3 km M0.8 [°/s]",
+            "Sustained turn 3 km M0.8 [°/s]",
             f"{math.degrees(perf.sustained_turn(ac, 3000, v3).turn_rate):.1f}",
             "≈ 18–20",
         ),
     ]
-    print(f"\n{'Grandeur':<36}{'Modèle':>10}   Référence publique")
+    print(f"\n{'Quantity':<36}{'Model':>10}   Public reference")
     for name, val, ref in rows:
         print(f"{name:<36}{val:>10}   {ref}")
 
@@ -193,8 +194,8 @@ def summary(ac: PointMassAircraft) -> None:
         x = ac.step(x, u)
     rate = n / (time.perf_counter() - t0)
     print(
-        f"\nVitesse de simulation : {rate:,.0f} pas physiques/s (dt = 0.01 s, soit "
-        f"{rate * 0.01:,.0f}× le temps réel)"
+        f"\nSimulation speed: {rate:,.0f} physics steps/s (dt = 0.01 s, i.e. "
+        f"{rate * 0.01:,.0f}× real time)"
     )
 
 
@@ -210,7 +211,7 @@ def main() -> None:
     plot_turn(axes[1], ac)
     plot_loop(axes[2], ac)
     fig.suptitle(
-        "F-16 simplifié : modèle point-masse (phase 2)",
+        "Simplified F-16: point-mass model (phase 2)",
         color=INK,
         fontsize=14,
         fontweight="bold",
@@ -221,7 +222,7 @@ def main() -> None:
     out = Path(args.out)
     out.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(out, dpi=150)
-    print(f"Figure enregistrée : {out}")
+    print(f"Figure saved: {out}")
     summary(ac)
     if args.show:
         plt.show()

@@ -1,4 +1,4 @@
-"""Validation des conventions de repères et de la cinématique d'attitude."""
+"""Validation of the frame conventions and attitude kinematics."""
 
 import math
 
@@ -25,12 +25,12 @@ def random_quats(n: int):
 
 
 def same_rotation(q1, q2, tol=TOL) -> bool:
-    """q et −q représentent la même attitude."""
+    """q and −q represent the same attitude."""
     return np.allclose(q1, q2, atol=tol) or np.allclose(q1, -q2, atol=tol)
 
 
 # --------------------------------------------------------------------------
-# Allers-retours Euler <-> quaternion <-> DCM
+# Euler <-> quaternion <-> DCM round trips
 # --------------------------------------------------------------------------
 @pytest.mark.parametrize(("phi", "theta", "psi"), list(random_euler(200)))
 def test_euler_quat_roundtrip(phi, theta, psi):
@@ -47,7 +47,7 @@ def test_euler_dcm_roundtrip_and_consistency(phi, theta, psi):
 
 
 def test_quat_dcm_roundtrip_all_branches():
-    """Couvre les 4 branches de Shepperd, y compris les rotations proches de 180°."""
+    """Covers all 4 Shepperd branches, including rotations close to 180°."""
     quats = [*random_quats(500)]
     quats += [fr.quat_from_axis_angle(ax, math.pi - 1e-3) for ax in np.eye(3)]
     quats += [fr.quat_from_axis_angle(ax, math.pi) for ax in np.eye(3)]
@@ -83,7 +83,7 @@ def test_normalize_keeps_sign_canonical_flips():
 
 
 # --------------------------------------------------------------------------
-# Sens physique des conventions (le test anti « bug de signe »)
+# Physical meaning of the conventions (the anti "sign bug" test)
 # --------------------------------------------------------------------------
 def test_heading_90_nose_points_east():
     q = fr.quat_from_euler(0.0, 0.0, math.radians(90))
@@ -93,7 +93,7 @@ def test_heading_90_nose_points_east():
 def test_positive_pitch_is_nose_up():
     th = math.radians(30)
     q = fr.quat_from_euler(0.0, th, 0.0)
-    # z NED vers le bas -> nez au-dessus de l'horizon = composante z négative
+    # NED z points down -> nose above the horizon = negative z component
     np.testing.assert_allclose(
         fr.body_to_ned(q, np.array([1.0, 0, 0])), [math.cos(th), 0, -math.sin(th)], atol=TOL
     )
@@ -113,7 +113,7 @@ def test_gravity_in_body_frame_for_level_flight():
 
 
 # --------------------------------------------------------------------------
-# Cinématique : intégration du quaternion
+# Kinematics: quaternion integration
 # --------------------------------------------------------------------------
 def _integrate_attitude(q0, omega, t_end, dt=0.01):
     def f(_t, q, u):
@@ -136,7 +136,7 @@ def test_constant_yaw_rate_gives_expected_heading():
 
 
 def test_constant_body_rate_matches_analytic_rotation():
-    """ω constant en repère corps : q(t) = q0 ⊗ rot(ω̂, |ω|·t). Traverse aussi θ = ±90°."""
+    """Constant ω in the body frame: q(t) = q0 ⊗ rot(ω̂, |ω|·t). Also crosses θ = ±90°."""
     q0 = fr.quat_from_euler(0.3, -0.2, 1.0)
     omega = np.array([0.7, -1.1, 0.4])
     t_end = 10.0
@@ -146,11 +146,11 @@ def test_constant_body_rate_matches_analytic_rotation():
 
 
 def test_looping_through_vertical_without_gimbal_lock():
-    """Looping complet (360° en 6 s) : passe par θ = ±90° et revient à l'attitude initiale."""
+    """Full loop (360° in 6 s): passes through θ = ±90° and returns to the initial attitude."""
     q_rate = 2 * math.pi / 6.0
     q_mid = _integrate_attitude(fr.quat_identity(), np.array([0.0, q_rate, 0.0]), t_end=1.5)
     _, theta_mid, _ = fr.euler_from_quat(q_mid)
-    assert theta_mid == pytest.approx(math.pi / 2, abs=1e-6)  # nez à la verticale
+    assert theta_mid == pytest.approx(math.pi / 2, abs=1e-6)  # nose vertical
     q = _integrate_attitude(fr.quat_identity(), np.array([0.0, q_rate, 0.0]), t_end=6.0)
     assert same_rotation(q, fr.quat_identity(), tol=1e-8)
 
@@ -168,11 +168,11 @@ def test_euler_rates_match_finite_difference():
 def test_k_norm_pulls_toward_unit_norm():
     q = np.array([1.1, 0.0, 0.0, 0.0])
     dq = fr.quat_derivative(q, np.zeros(3), k_norm=1.0)
-    assert dq[0] < 0  # |q| > 1 -> ramené vers 1
+    assert dq[0] < 0  # |q| > 1 -> pulled back toward 1
 
 
 # --------------------------------------------------------------------------
-# Repère aérodynamique et trajectoire
+# Aerodynamic frame and flight path
 # --------------------------------------------------------------------------
 @pytest.mark.parametrize(
     ("V", "alpha", "beta"), [(200.0, 0.1, 0.0), (150.0, -0.2, 0.05), (300.0, 0.6, -0.1)]
@@ -180,7 +180,7 @@ def test_k_norm_pulls_toward_unit_norm():
 def test_aero_angles_roundtrip(V, alpha, beta):
     v_body = fr.body_velocity_from_aero(V, alpha, beta)
     np.testing.assert_allclose(fr.aero_angles(v_body), (V, alpha, beta), atol=TOL)
-    # l'axe x vent est bien porté par la vitesse
+    # the wind x axis is indeed aligned with the velocity
     np.testing.assert_allclose(fr.dcm_wind_to_body(alpha, beta) @ [V, 0, 0], v_body, atol=TOL)
 
 
@@ -191,9 +191,9 @@ def test_wind_dcm_is_proper_rotation():
 
 
 def test_lift_points_up_in_level_flight():
-    """Portance (−z vent) : vers le haut en NED pour un avion à plat avec α > 0."""
+    """Lift (−z wind): upward in NED for a level aircraft with α > 0."""
     alpha = math.radians(5)
-    theta = alpha  # vol en palier : θ = α
+    theta = alpha  # level flight: θ = α
     q = fr.quat_from_euler(0.0, theta, 0.0)
     lift_body = fr.dcm_wind_to_body(alpha, 0.0) @ np.array([0.0, 0.0, -1.0])
     np.testing.assert_allclose(fr.body_to_ned(q, lift_body), [0, 0, -1], atol=TOL)

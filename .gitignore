@@ -16,9 +16,10 @@ uv.lock
 htmlcov/
 .ipynb_checkpoints/
 
-# Sorties locales (vols manuels, essais) — les résultats de référence sont dans results/
-outputs/
+# Local outputs (manual flights, trials) — reference results live in results/
+/outputs/
 *.npz
+project_roadmap.md
 
 # OS / IDE
 .DS_Store

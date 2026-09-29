@@ -1,13 +1,12 @@
-"""Démonstration de la phase 4 : tableau de bord, capteurs bruités et fin de vol.
+"""Phase 4 demonstration: instrument panel, noisy sensors and end of flight.
 
-Le F-16 6-DOF part d'un vol stabilisé (3000 m, 200 m/s), fait une ressource, bascule sur
-le dos puis part en piqué plein gaz (Split-S raté) jusqu'à ce que le moniteur
-d'enveloppe arrête le vol.
-Le tableau de bord est affiché chaque seconde, en valeurs vraies et mesurées
-(capteurs de ``src/jetsim/data/sensors/realistic.yaml``).
+The 6-DOF F-16 starts from steady flight (3000 m, 200 m/s), pulls up, rolls
+inverted then dives at full throttle (botched Split-S) until the envelope
+monitor stops the flight.
+The instrument panel is printed every second, as true and measured values
+(sensors from ``src/jetsim/data/sensors/realistic.yaml``).
 
-Usage :
-    python scripts/phase4_dashboard.py
+
 """
 
 from __future__ import annotations
@@ -27,9 +26,9 @@ DT, CONTROL_DT = 0.01, 0.1
 
 
 def pilot(t: float, u_trim: np.ndarray) -> np.ndarray:
-    """Scénario : ressource (0-3 s), demi-tonneau (3-4 s), stabilisation sur le dos (4-5 s),
-    puis Split-S : on tire sur le dos (le nez part vers le sol) et on met plein gaz, en
-    tirant trop peu pour ressortir du piqué."""
+    """Scenario: pull-up (0-3 s), half roll (3-4 s), stabilize inverted (4-5 s),
+    then Split-S: pull while inverted (the nose heads for the ground) and go full throttle,
+    pulling too little to recover from the dive."""
     u = u_trim.copy()
     if t < 3.0:
         u[d6.ELEVATOR] -= 3 * DEG
@@ -49,7 +48,7 @@ def main() -> None:
 
     header = (
         f"{'t [s]':>6}{'alt [m]':>9}{'TAS':>6}{'CAS':>6}{'Mach':>6}{'α°':>6}"
-        f"{'nz':>6}{'φ°':>6}{'θ°':>6}{'Ps':>7}   mesure : {'alt':>6}{'α°':>6}{'nz':>6}"
+        f"{'nz':>6}{'φ°':>6}{'θ°':>6}{'Ps':>7}   measured: {'alt':>6}{'α°':>6}{'nz':>6}"
     )
     print(header)
     print("-" * len(header))
@@ -71,7 +70,7 @@ def main() -> None:
                 f"{truth.specific_excess_power:7.0f}   "
                 f"         {meas.altitude:6.0f}{meas.alpha / DEG:6.1f}{meas.nz:6.2f}"
             )
-    print(f"\nFin du vol à t = {t:.1f} s — {monitor.message or 'durée maximale atteinte'}")
+    print(f"\nEnd of flight at t = {t:.1f} s — {monitor.message or 'maximum duration reached'}")
 
 
 if __name__ == "__main__":

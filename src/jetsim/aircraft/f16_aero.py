@@ -1,8 +1,8 @@
-"""Aérodynamique tabulée du F-16 (modèle Stevens & Lewis, annexe A).
+"""Tabulated F-16 aerodynamics (Stevens & Lewis model, appendix A).
 
-Coefficients en **axes corps** (x avant, y droite, z bas), fonctions de l'incidence α,
-du dérapage β, des gouvernes (δe profondeur, δa ailerons, δr direction) et des vitesses
-angulaires (p, q, r) via les dérivées d'amortissement :
+Coefficients in body axes (x forward, y right, z down), functions of angle of attack α,
+sideslip β, control surfaces (δe elevator, δa ailerons, δr rudder) and angular
+rates (p, q, r) through the damping derivatives:
 
     CX = CX(α, δe) + (c̄q/2V)·CXq(α)
     CY = −0.02β + 0.021·δa/20 + 0.086·δr/30 + (b/2V)·(CYr·r + CYp·p)
@@ -11,14 +11,14 @@ angulaires (p, q, r) via les dérivées d'amortissement :
     Cm = Cm(α, δe) + (c̄q/2V)·Cmq(α) + CZ·(x_cg,ref − x_cg)
     Cn = Cn(α, β) + ΔCn_δa·δa/20 + ΔCn_δr·δr/30 + (b/2V)·(Cnr·r + Cnp·p) − CY·(x_cg,ref − x_cg)·c̄/b
 
-(angles α, β, δ en degrés dans ces formules, comme dans les tables.)
+(angles α, β, δ in degrees in these formulas, as in the tables.)
 
-Les deux derniers termes transportent les moments du centre de gravité de référence
-(35 % de c̄) vers le centrage réel ``x_cg`` : reculer le centrage rend l'avion moins stable.
+The last two terms transfer the moments from the reference center of gravity
+(35 % of c̄) to the actual CG position ``x_cg``: moving the CG aft makes the aircraft less stable.
 
-Interface : angles en **radians**, vitesses en m/s, conversion en degrés en interne.
-Domaine des tables : α ∈ [−10°, 45°], |β| ≤ 30°, |δe| ≤ 24° ; au-delà, extrapolation
-linéaire (comme le modèle d'origine). Pas d'effet du Mach.
+Interface: angles in radians, speeds in m/s, converted to degrees internally.
+Table domain: α ∈ [−10°, 45°], |β| ≤ 30°, |δe| ≤ 24°; beyond that, linear
+extrapolation (as in the original model). No Mach effect.
 """
 
 from __future__ import annotations
@@ -38,7 +38,7 @@ Array = npt.NDArray[np.float64]
 
 
 # --------------------------------------------------------------------------
-# Interpolation sur grilles régulières (linéaire, extrapolation par le dernier intervalle)
+# Interpolation on uniform grids (linear, extrapolated from the last interval)
 # --------------------------------------------------------------------------
 @dataclass(frozen=True)
 class UniformGrid:
@@ -55,7 +55,7 @@ class UniformGrid:
         return np.asarray(self.start + self.step * np.arange(self.count), dtype=np.float64)
 
     def locate(self, x: float) -> tuple[int, float]:
-        """Indice de cellule ``i`` ∈ [0, n−2] et fraction ``f`` (hors de [0, 1] = extrapolation)."""
+        """Cell index ``i`` ∈ [0, n−2] and fraction ``f`` (outside [0, 1] = extrapolation)."""
         s = (x - self.start) / self.step
         i = math.floor(s)
         if i < 0:
@@ -71,7 +71,7 @@ def lerp1(table: Array, grid: UniformGrid, x: float) -> float:
 
 
 def lerp2(table: Array, gx: UniformGrid, x: float, gy: UniformGrid, y: float) -> float:
-    """Interpolation bilinéaire de ``table[ix, iy]``."""
+    """Bilinear interpolation of ``table[ix, iy]``."""
     i, fx = gx.locate(x)
     j, fy = gy.locate(y)
     t00, t01 = table[i, j], table[i, j + 1]
@@ -103,7 +103,7 @@ class F16AeroTables:
     dldr: Array
     dnda: Array
     dndr: Array
-    damping: Array  # [α, 9] : CXq, CYr, CYp, CZq, Clr, Clp, Cmq, Cnr, Cnp
+    damping: Array  # [α, 9]: CXq, CYr, CYp, CZq, Clr, Clp, Cmq, Cnr, Cnp
 
     @classmethod
     def from_dict(cls, d: dict[str, Any]) -> F16AeroTables:
@@ -157,7 +157,7 @@ class F16AeroTables:
         for name, shape in expected.items():
             if getattr(self, name).shape != shape:
                 raise ValueError(
-                    f"Table {name} : forme {getattr(self, name).shape}, {shape} attendue."
+                    f"Table {name}: shape {getattr(self, name).shape}, expected {shape}."
                 )
 
 
@@ -181,7 +181,7 @@ class AeroCoefficients:
 
 
 class F16Aero:
-    """Coefficients aérodynamiques en axes corps (voir le module)."""
+    """Aerodynamic coefficients in body axes (see the module docstring)."""
 
     def __init__(
         self, tables: F16AeroTables, wing_span: float, mean_chord: float, xcg_ref: float = 0.35
@@ -204,7 +204,7 @@ class F16Aero:
         airspeed: float,
         xcg: float,
     ) -> AeroCoefficients:
-        """Coefficients totaux. Angles et vitesses angulaires en rad et rad/s, V en m/s."""
+        """Total coefficients. Angles and angular rates in rad and rad/s, V in m/s."""
         t = self.t
         a = alpha * RAD_TO_DEG
         b = beta * RAD_TO_DEG
@@ -214,7 +214,7 @@ class F16Aero:
         abs_b = abs(b)
         sign_b = 1.0 if b > 0 else (-1.0 if b < 0 else 0.0)
 
-        # Coefficients statiques
+        # Static coefficients
         cx = lerp2(t.cx, t.alpha, a, t.elevator, el)
         cy = t.cy_beta * b + t.cy_aileron * dail + t.cy_rudder * drdr
         cz = lerp1(t.cz_alpha, t.alpha, a) * (1.0 - (b / 57.3) ** 2) + t.cz_elevator_gain * (
@@ -232,7 +232,7 @@ class F16Aero:
             + lerp2(t.dndr, t.alpha, a, t.beta, b) * drdr
         )
 
-        # Amortissement (vitesses angulaires adimensionnées)
+        # Damping (non-dimensional angular rates)
         i, f = t.alpha.locate(a)
         d = t.damping[i] + f * (t.damping[i + 1] - t.damping[i])
         v_safe = max(airspeed, 1.0)

@@ -1,17 +1,17 @@
-"""Briques de commande : PID avec anti-emballement, filtres du premier ordre.
+"""Control building blocks: PID with anti-windup, first-order filters.
 
-PID « parallèle » ::
+"Parallel" PID ::
 
-    u = Kp·e + Ki·∫e dt − Kd·dy/dt        (dérivée sur la MESURE, filtrée)
+    u = Kp·e + Ki·∫e dt − Kd·dy/dt        (derivative on the MEASUREMENT, filtered)
 
-* dérivée sur la mesure plutôt que sur l'erreur : pas de coup de bélier quand la consigne
-  change brutalement ;
-* **anti-emballement** (anti-windup) par blocage : l'intégrateur est gelé tant que la
-  sortie est saturée et que l'erreur pousse dans le sens de la saturation ;
-* **intégration conditionnelle** (``integral_zone``) : on n'intègre que près de la consigne,
-  pour éviter que l'intégrateur se charge pendant les grands transitoires ;
-* ``reset(output=…)`` initialise l'intégrateur pour que la première sortie vaille ``output``
-  (transfert sans à-coup quand on engage le pilote automatique en vol).
+* derivative on the measurement rather than on the error: no derivative kick when the
+  setpoint changes abruptly;
+* anti-windup by clamping: the integrator is frozen while the output is saturated
+  and the error pushes in the direction of saturation;
+* conditional integration (``integral_zone``): integrate only near the setpoint,
+  to keep the integrator from winding up during large transients;
+* ``reset(output=…)`` initializes the integrator so that the first output equals ``output``
+  (bumpless transfer when engaging the autopilot in flight).
 """
 
 from __future__ import annotations
@@ -27,27 +27,27 @@ class PID:
     kd: float = 0.0
     out_min: float = -math.inf
     out_max: float = math.inf
-    derivative_tau: float = 0.05  # [s] filtre de la dérivée
-    integral_zone: float = math.inf  # n'intègre que si |erreur| ≤ cette valeur
+    derivative_tau: float = 0.05  # [s] derivative filter
+    integral_zone: float = math.inf  # only integrate if |error| ≤ this value
     integral: float = field(default=0.0, init=False)
     _last_y: float | None = field(default=None, init=False)
     _d_filt: float = field(default=0.0, init=False)
 
     def reset(self, output: float = 0.0, error: float = 0.0) -> None:
-        """Remet à zéro ; l'intégrale est choisie pour que la sortie vaille ``output``."""
+        """Reset; the integral is chosen so that the output equals ``output``."""
         self._last_y = None
         self._d_filt = 0.0
         self.integral = (output - self.kp * error) / self.ki if self.ki else 0.0
 
     def __call__(self, error: float, dt: float, measurement: float | None = None,
                  gain: float = 1.0) -> float:  # fmt: skip
-        """Sortie du régulateur.
+        """Controller output.
 
         Args:
-            error: consigne − mesure.
-            dt: pas de temps [s].
-            measurement: mesure (pour le terme dérivé) ; ``None`` = pas de terme dérivé.
-            gain: facteur multiplicatif global (programmation de gains).
+            error: setpoint − measurement.
+            dt: time step [s].
+            measurement: measurement (for the derivative term); ``None`` = no derivative term.
+            gain: overall multiplicative factor (gain scheduling).
         """
         d_term = 0.0
         if self.kd and measurement is not None:
@@ -70,10 +70,10 @@ class PID:
 
 @dataclass
 class Washout:
-    """Filtre passe-haut du 1er ordre : laisse passer les variations, efface le continu.
+    """First-order high-pass filter: passes variations, removes the steady component.
 
-    Sert à l'amortisseur de lacet : on veut amortir les oscillations de r, pas s'opposer au
-    taux de lacet permanent d'un virage coordonné.
+    Used by the yaw damper: we want to damp oscillations of r, not oppose the
+    steady yaw rate of a coordinated turn.
     """
 
     tau: float
@@ -88,5 +88,5 @@ class Washout:
 
 
 def wrap_angle(angle: float) -> float:
-    """Angle dans [−π, π[ (erreurs de cap)."""
+    """Angle in [−π, π) (heading errors)."""
     return (angle + math.pi) % (2 * math.pi) - math.pi

@@ -1,7 +1,7 @@
-# Capteurs réalistes (ordres de grandeur d'une centrale anémobarométrique + centrale
-# inertielle de chasseur) — valeurs [EST], à utiliser pour la robustesse (phase 11).
-# std : bruit à chaque lecture ; bias_std : biais tiré à chaque épisode.
-# Unités SI ; suffixe _deg pour les angles en degrés (et °/s pour p, q, r).
+# Realistic sensors (orders of magnitude of a fighter's air-data computer + inertial
+# navigation unit) — [EST] values, to be used for robustness (phase 11).
+# std: noise on every reading; bias_std: bias drawn at each episode.
+# SI units; _deg suffix for angles in degrees (and deg/s for p, q, r).
 altitude:        {std: 3.0, bias_std: 10.0}      # [m]
 tas:             {std: 0.5, bias_std: 1.0}       # [m/s]
 cas:             {std: 0.5, bias_std: 1.0}       # [m/s]

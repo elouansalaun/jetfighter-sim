@@ -1,26 +1,26 @@
-"""Pilotage manuel du F-16 au clavier (ou au joystick), en temps réel.
+"""Manual flying of the F-16 with the keyboard (or a joystick), in real time.
 
-Le meilleur test de sanité du modèle : si un humain ne peut pas le faire voler, un agent RL
-non plus. À la fin (Échap) ou sur demande (S), le vol est sauvegardé dans
-``outputs/flights/`` : enregistrement ``.npz`` (rejouable), courbes ``.png`` et fichier
-Tacview ``.acmi``.
+The best sanity test of the model: if a human cannot fly it, neither can an RL
+agent. At the end (Esc) or on request (S), the flight is saved to
+``outputs/flights/``: ``.npz`` recording (replayable), ``.png`` curves and a
+Tacview ``.acmi`` file.
 
-Touches (repérées par le symbole imprimé : valables en AZERTY comme en QWERTY) :
-    flèches haut / bas      piquer / cabrer
-    flèches gauche / droite roulis
-    W / X                   palonnier gauche / droite
-    A / Q                   gaz + / −   (au-delà de 77 % : post-combustion)
-    T / G                   trim à cabrer / à piquer
-    Espace                  pause
-    R                       recommencer
-    S                       sauvegarder le vol en cours
-    Échap                   quitter (sauvegarde automatique)
+Keys (identified by the printed symbol: valid on AZERTY as well as QWERTY):
+    up / down arrows        pitch down / pitch up
+    left / right arrows     roll
+    W / X                   rudder left / right
+    A / Q                   throttle + / −   (above 77 %: afterburner)
+    T / G                   trim nose up / nose down
+    Space                   pause
+    R                       restart
+    S                       save the current flight
+    Esc                     quit (automatic save)
 
-Joystick : détecté automatiquement (axes 0 roulis, 1 tangage, 2 lacet, 3 manette).
+Joystick: detected automatically (axes 0 roll, 1 pitch, 2 yaw, 3 throttle).
 
-Installation : ``pip install -e ".[viz]"`` (pygame).
+Installation: ``pip install -e ".[viz]"`` (pygame).
 
-Usage :
+Usage:
     python scripts/fly_manual.py [--model 6dof|3dof] [--altitude 3000] [--speed 200]
 """
 
@@ -34,25 +34,25 @@ os.environ.setdefault("PYGAME_HIDE_SUPPORT_PROMPT", "1")
 
 import matplotlib
 
-matplotlib.use("Agg")  # les courbes sont enregistrées en fichier, sans fenêtre
+matplotlib.use("Agg")  # curves are saved to file, without a window
 
 try:
     import pygame
 except ImportError as exc:
     sys.exit(
-        f"Impossible d'importer pygame ({exc}).\n"
-        f"Python utilisé : {sys.executable}\n"
-        "Installez-le dans CE Python :\n"
-        '  - environnement uv (.venv) : uv pip install -e ".[viz]"\n'
-        f'  - sinon                   : {sys.executable} -m pip install -e ".[viz]"'
+        f"Could not import pygame ({exc}).\n"
+        f"Python in use: {sys.executable}\n"
+        "Install it in THIS Python:\n"
+        '  - uv environment (.venv): uv pip install -e ".[viz]"\n'
+        f'  - otherwise             : {sys.executable} -m pip install -e ".[viz]"'
     )
 
 from jetsim.viz.manual import HudRenderer, ManualFlight
 
 FPS = 50
 KEYS = {
-    pygame.K_UP: "pitch_down",  # pousser le manche : piquer
-    pygame.K_DOWN: "pitch_up",  # tirer le manche : cabrer
+    pygame.K_UP: "pitch_down",  # push the stick: nose down
+    pygame.K_DOWN: "pitch_up",  # pull the stick: nose up
     pygame.K_LEFT: "roll_left",
     pygame.K_RIGHT: "roll_right",
     pygame.K_w: "yaw_left",
@@ -73,7 +73,7 @@ def joystick_axes(joy) -> tuple[float, float, float, float | None]:
         return 0.0 if abs(v) < DEADZONE else v
 
     throttle = (1.0 - axis(3)) / 2 if joy.get_numaxes() > 3 else None
-    # axe 1 : manche vers soi = valeur positive = cabrer
+    # axis 1: stick toward you = positive value = pitch up
     return axis(0), axis(1), axis(2), throttle
 
 
@@ -89,7 +89,7 @@ def main() -> None:
 
     pygame.init()
     screen = pygame.display.set_mode((1100, 700))
-    pygame.display.set_caption("jetfighter-sim — pilotage manuel")
+    pygame.display.set_caption("jetfighter-sim — manual flight")
     clock = pygame.time.Clock()
     hud = HudRenderer(screen.get_size())
     joy = None
@@ -118,7 +118,7 @@ def main() -> None:
                 elif event.key == pygame.K_r:
                     flight.reset()
                 elif event.key == pygame.K_s:
-                    print("Sauvegarde du vol en cours :")
+                    print("Saving the current flight:")
                     save()
         pressed_keys = pygame.key.get_pressed()
         pressed = {name for key, name in KEYS.items() if pressed_keys[key]}
@@ -127,7 +127,7 @@ def main() -> None:
         pygame.display.flip()
         clock.tick(FPS)
 
-    print("Vol terminé, sauvegarde :")
+    print("Flight ended, saving:")
     save()
     pygame.quit()
 

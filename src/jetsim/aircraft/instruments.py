@@ -1,23 +1,23 @@
-"""Tableau de bord commun aux modèles 3-DOF et 6-DOF.
+"""Instrument panel shared by the 3-DOF and 6-DOF models.
 
-``read_instruments(model, x)`` renvoie les mêmes grandeurs quel que soit le modèle, ce qui
-permettra aux environnements RL (phase 7) de construire leurs observations sans savoir
-quel modèle tourne derrière.
+``read_instruments(model, x)`` returns the same quantities whatever the model, which
+lets the RL environments (phase 7) build their observations without knowing
+which model is running underneath.
 
-Conventions :
+Conventions:
 
-* **attitude** (roulis φ, assiette θ, cap ψ) : angles d'Euler 3-2-1 du **repère corps** ;
-* **trajectoire** (pente γ, route χ) : direction du vecteur vitesse ;
-* **inclinaison μ** (*bank*) : rotation du plan de portance autour du vecteur vitesse.
-  C'est elle qui fixe l'équilibre d'un virage (n·cos μ = cos γ en palier). Elle diffère
-  de la gîte φ du fuselage dès que l'incidence est grande ;
-* **facteurs de charge** n = f/g, avec f la force spécifique (ce que mesure un
-  accéléromètre : efforts aéro + poussée divisés par la masse, sans la gravité), en axes
-  corps. ``nz`` est compté **positif vers le haut** (1 en palier, 9 en ressource à 9 g) ;
-* **énergie spécifique** E = h + V²/2g et **puissance spécifique excédentaire** Ps = Ė.
+* attitude (roll φ, pitch θ, heading ψ): 3-2-1 Euler angles of the **body frame**;
+* flight path (flight-path angle γ, course χ): direction of the velocity vector;
+* bank μ: rotation of the lift plane about the velocity vector.
+  It sets the equilibrium of a turn (n·cos μ = cos γ in level flight). It differs
+  from the fuselage roll φ as soon as the angle of attack is large;
+* load factors n = f/g, with f the specific force (what an accelerometer
+  measures: aero + thrust forces divided by mass, without gravity), in body
+  axes. ``nz`` is counted positive upwar (1 in level flight, 9 in a 9 g pull-up);
+* specific energy E = h + V²/2g and specific excess power Ps = Ė.
 
-Pour le 3-DOF, l'attitude et les vitesses angulaires corps sont reconstruites exactement
-à partir du repère vent et de l'incidence (hypothèse du modèle : dérapage nul).
+For the 3-DOF model, the body attitude and angular rates are reconstructed exactly
+from the wind frame and the angle of attack (model assumption: zero sideslip).
 """
 
 from __future__ import annotations
@@ -45,43 +45,43 @@ Vec = npt.NDArray[np.float64]
 
 @dataclass(frozen=True)
 class Instruments:
-    """Grandeurs observables de l'avion (SI, radians)."""
+    """Observable aircraft quantities (SI, radians)."""
 
     # Position
     north: float
     east: float
     altitude: float
-    # Anémométrie
-    tas: float  # vitesse vraie [m/s]
-    cas: float  # vitesse corrigée [m/s]
-    eas: float  # vitesse équivalente [m/s]
+    # Air data
+    tas: float  # true airspeed [m/s]
+    cas: float  # calibrated airspeed [m/s]
+    eas: float  # equivalent airspeed [m/s]
     mach: float
     dynamic_pressure: float  # [Pa]
-    # Variomètre et trajectoire
+    # Vertical speed and flight path
     vertical_speed: float  # ḣ [m/s]
-    gamma: float  # pente
-    course: float  # route χ
-    bank: float  # inclinaison μ du vecteur portance autour de la vitesse
-    # Attitude (repère corps)
+    gamma: float  # flight-path angle
+    course: float  # course χ
+    bank: float  # bank μ of the lift vector about the velocity
+    # Attitude (body frame)
     roll: float  # φ
     pitch: float  # θ
     heading: float  # ψ
-    # Aérodynamique
+    # Aerodynamics
     alpha: float
     beta: float
-    # Gyromètres (repère corps)
+    # Rate gyros (body frame)
     p: float
     q: float
     r: float
-    # Accéléromètres (facteurs de charge, repère corps)
+    # Accelerometers (load factors, body frame)
     nx: float
     ny: float
-    nz: float  # positif vers le haut
-    # Énergie
+    nz: float  # positive upward
+    # Energy
     specific_energy: float  # E [m]
     specific_excess_power: float  # Ps [m/s]
     airspeed_rate: float  # V̇ [m/s²]
-    # Moteur
+    # Engine
     thrust: float  # [N]
     power: float  # [0-1]
 
@@ -89,7 +89,7 @@ class Instruments:
         return asdict(self)
 
     def vector(self, names: tuple[str, ...]) -> Vec:
-        """Sous-ensemble des grandeurs, dans l'ordre demandé (pour les observations RL)."""
+        """Subset of the quantities, in the requested order (for RL observations)."""
         return np.array([getattr(self, n) for n in names], dtype=np.float64)
 
 
@@ -101,12 +101,12 @@ def _airspeeds(tas: float, h: float) -> tuple[float, float]:
 
 
 def read_instruments(model: d3.PointMassAircraft | d6.F16SixDof, x: Vec) -> Instruments:
-    """Lit le tableau de bord pour l'état ``x`` du modèle donné."""
+    """Read the instrument panel for state ``x`` of the given model."""
     if isinstance(model, d6.F16SixDof):
         return _read_6dof(model, x)
     if isinstance(model, d3.PointMassAircraft):
         return _read_3dof(model, x)
-    raise TypeError(f"Modèle non pris en charge : {type(model).__name__}")
+    raise TypeError(f"Unsupported model: {type(model).__name__}")
 
 
 # --------------------------------------------------------------------------
@@ -157,21 +157,21 @@ def _read_6dof(model: d6.F16SixDof, x: Vec) -> Instruments:
 
 
 # --------------------------------------------------------------------------
-# 3-DOF : reconstruction de l'attitude corps à partir du repère vent et de α
+# 3-DOF: reconstruct the body attitude from the wind frame and α
 # --------------------------------------------------------------------------
 def _read_3dof(model: d3.PointMassAircraft, x: Vec) -> Instruments:
     fd = model.flight_data(x)
     alpha = fd.alpha
     u = np.array([x[d3.POWER], alpha, x[d3.ROLL_RATE]])
     dx = model.derivatives(0.0, x, u)
-    # Rotation du repère vent : ω_w = 2·(q_w* ⊗ q̇_w), partie vectorielle
+    # Wind-frame rotation: ω_w = 2·(q_w* ⊗ q̇_w), vector part
     q_w = x[d3.QUAT]
     omega_w = 2.0 * quat_multiply(quat_conjugate(q_w), dx[d3.QUAT])[1:]
     c_bw = dcm_wind_to_body(alpha, 0.0)
     c_nb = dcm_from_quat(q_w) @ c_bw.T
     roll, pitch, heading = euler_from_dcm(c_nb)
-    # ω_corps = ω_vent + [0, α̇, 0]. α̇ dépend de la commande (inconnue du tableau de bord) :
-    # on l'omet, l'écart est nul en régime établi et borné par la dynamique d'incidence.
+    # ω_body = ω_wind + [0, α̇, 0]. α̇ depends on the command (unknown to the instrument panel):
+    # it is omitted; the error is zero in steady state and bounded by the AoA dynamics.
     omega_b = c_bw @ omega_w
 
     ca, sa = math.cos(alpha), math.sin(alpha)
@@ -214,24 +214,24 @@ def _read_3dof(model: d3.PointMassAircraft, x: Vec) -> Instruments:
 
 
 # --------------------------------------------------------------------------
-# Géométrie (sans singularité) pour les tâches de navigation et de voltige
+# Singularity-free geometry for navigation and aerobatics tasks
 # --------------------------------------------------------------------------
 def wind_axes(model: d3.PointMassAircraft | d6.F16SixDof, x: Vec) -> Vec:
-    """Matrice C_nw (repère vent -> NED), valable à toute attitude (y compris à la verticale).
+    """C_nw matrix (wind frame -> NED), valid at any attitude (including vertical).
 
-    Colonnes : direction de la vitesse ``x_w``, « aile droite » ``y_w``, et ``z_w`` ; la
-    portance est portée par −``z_w``. Contrairement aux angles (μ, γ, χ), elle ne présente
-    pas de singularité en montée ou en descente verticale (looping, Split-S).
+    Columns: velocity direction ``x_w``, "right wing" ``y_w``, and ``z_w``; lift acts
+    along −``z_w``. Unlike the angles (μ, γ, χ), it has no singularity when
+    climbing or diving vertically (loop, Split-S).
     """
     if isinstance(model, d6.F16SixDof):
         _, alpha, beta = aero_angles(x[d6.VEL])
         return dcm_from_quat(x[d6.QUAT]) @ dcm_wind_to_body(alpha, beta)
     if isinstance(model, d3.PointMassAircraft):
         return dcm_from_quat(x[d3.QUAT])
-    raise TypeError(f"Modèle non pris en charge : {type(model).__name__}")
+    raise TypeError(f"Unsupported model: {type(model).__name__}")
 
 
 def position_ned(model: d3.PointMassAircraft | d6.F16SixDof, x: Vec) -> Vec:
-    """Position [nord, est, bas] [m]."""
+    """Position [north, east, down] [m]."""
     idx = (d6.PN, d6.PE, d6.H) if isinstance(model, d6.F16SixDof) else (d3.PN, d3.PE, d3.H)
     return np.array([x[idx[0]], x[idx[1]], -x[idx[2]]])

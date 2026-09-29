@@ -1,4 +1,4 @@
-"""Phase 4 : vitesses anémométriques, tableau de bord, capteurs, enveloppe de vol."""
+"""Phase 4: airspeeds, instrument panel, sensors, flight envelope."""
 
 import dataclasses
 import math
@@ -37,7 +37,7 @@ def f16() -> d6.F16SixDof:
 
 
 # --------------------------------------------------------------------------
-# Vitesses anémométriques
+# Airspeeds
 # --------------------------------------------------------------------------
 @pytest.mark.parametrize("v", [50.0, 200.0, 340.0, 400.0, 600.0])
 def test_cas_equals_tas_at_sea_level(v):
@@ -48,7 +48,7 @@ def test_impact_pressure_continuous_at_mach_one():
     below = impact_pressure(1.0 - 1e-9, P0)
     above = impact_pressure(1.0 + 1e-9, P0)
     assert below == pytest.approx(above, rel=1e-6)
-    # formule isentropique à Mach 1 : qc/P = 1.2^3.5 − 1
+    # isentropic formula at Mach 1: qc/P = 1.2^3.5 − 1
     assert impact_pressure(1.0, 1.0) == pytest.approx(1.2**3.5 - 1)
 
 
@@ -57,19 +57,19 @@ def test_cas_roundtrip_and_ordering(v, h):
     cas = calibrated_airspeed(v, h)
     assert true_airspeed_from_calibrated(cas, h) == pytest.approx(v, rel=1e-10)
     eas = float(equivalent_airspeed(v, h))
-    assert eas < cas < v  # en altitude : EAS < CAS < TAS
+    assert eas < cas < v  # at altitude: EAS < CAS < TAS
 
 
 def test_cas_known_value():
-    """À 10 000 m, 240 m/s vrais (M 0.80) : EAS ≈ 139 m/s, CAS ≈ 147 m/s
-    (correction de compressibilité ≈ +8 m/s)."""
+    """At 10,000 m, 240 m/s true (M 0.80): EAS ≈ 139 m/s, CAS ≈ 147 m/s
+    (compressibility correction ≈ +8 m/s)."""
     assert float(equivalent_airspeed(240.0, 10_000.0)) == pytest.approx(139.4, abs=0.1)
     assert calibrated_airspeed(240.0, 10_000.0) == pytest.approx(147.4, abs=0.1)
     assert calibrated_airspeed(A0, 0.0) == pytest.approx(A0)
 
 
 # --------------------------------------------------------------------------
-# Tableau de bord
+# Instrument panel
 # --------------------------------------------------------------------------
 def test_instrument_vector_and_names(f16):
     x, _ = f16.trim(3000, 200)
@@ -85,8 +85,8 @@ def test_unknown_model_rejected():
 
 @pytest.mark.parametrize("which", ["pm", "f16"])
 def test_level_flight_dashboard(request, which):
-    """Palier stabilisé : n_z ≈ cos θ, n_x ≈ sin θ (l'accéléromètre voit −g), Ps ≈ 0,
-    assiette = incidence, variomètre nul."""
+    """Steady level flight: n_z ≈ cos θ, n_x ≈ sin θ (the accelerometer sees −g), Ps ≈ 0,
+    pitch = angle of attack, zero vertical speed."""
     model = request.getfixturevalue(which)
     x, _ = model.trim(3000.0, 200.0) if which == "f16" else model.trimmed_state(3000.0, 200.0)
     ins = read_instruments(model, x)
@@ -102,14 +102,14 @@ def test_level_flight_dashboard(request, which):
 
 
 def test_point_mass_body_rates_in_level_turn(pm):
-    """Virage stabilisé à n = 4 : en axes corps, p = −ω·sin θ, q = ω·sin φ·cos θ,
-    r = ω·cos φ·cos θ, avec ω le taux de virage."""
+    """Steady turn at n = 4: in body axes, p = −ω·sin θ, q = ω·sin φ·cos θ,
+    r = ω·cos φ·cos θ, with ω the turn rate."""
     x, _ = pm.trimmed_state(3000.0, 250.0, load_factor=4.0)
     ins = read_instruments(pm, x)
     omega = G0 * math.sqrt(15) / 250.0
     th, ph = ins.pitch, ins.roll
-    # la gîte du fuselage diffère légèrement de l'inclinaison du vecteur vitesse (μ),
-    # car le fuselage est cabré de α par rapport à la vitesse
+    # the fuselage roll angle differs slightly from the bank of the velocity vector (μ),
+    # because the fuselage is pitched up by α relative to the velocity
     assert abs(ph - math.acos(1 / 4)) < 0.2 * DEG
     np.testing.assert_allclose(
         [ins.p, ins.q, ins.r],
@@ -117,14 +117,14 @@ def test_point_mass_body_rates_in_level_turn(pm):
          omega * math.cos(ph) * math.cos(th)],
         atol=1e-9,
     )  # fmt: skip
-    # f_corps = C_bw·f_vent avec T·cos α = D à l'équilibre : n_z = 4·cos α
+    # f_body = C_bw·f_wind with T·cos α = D at equilibrium: n_z = 4·cos α
     assert ins.nz == pytest.approx(4.0 * math.cos(ins.alpha), rel=1e-9)
 
 
 @pytest.mark.parametrize("which", ["pm", "f16"])
 def test_velocity_bank_angle(request, which):
-    """Inclinaison μ du vecteur portance : nulle en palier ; en virage stabilisé 3-DOF,
-    égale à acos(1/n) ; proche de la gîte φ du fuselage quand l'incidence est faible."""
+    """Bank μ of the lift vector: zero in level flight; in a steady 3-DOF turn,
+    equal to acos(1/n); close to the fuselage roll φ when the angle of attack is small."""
     model = request.getfixturevalue(which)
     if which == "pm":
         x, _ = model.trimmed_state(3000.0, 250.0, load_factor=3.0)
@@ -147,7 +147,7 @@ def test_point_mass_attitude_in_climb(pm):
 
 
 def test_models_agree_on_level_flight(pm, f16):
-    """Même point de vol : les deux modèles donnent des tableaux de bord proches."""
+    """Same flight point: both models give similar instrument panels."""
     a = read_instruments(pm, pm.trimmed_state(6000.0, 250.0)[0])
     b = read_instruments(f16, f16.trim(6000.0, 250.0)[0])
     for name in ("tas", "cas", "mach", "altitude", "nz", "specific_energy"):
@@ -156,7 +156,7 @@ def test_models_agree_on_level_flight(pm, f16):
 
 
 def test_6dof_pull_up_load_factor_and_energy(f16):
-    """Ressource : n_z monte au-dessus de 1 ; E + ∫(−Ps) reste cohérent (Ė = Ps)."""
+    """Pull-up: n_z rises above 1; E + ∫(−Ps) stays consistent (Ė = Ps)."""
     x0, u0 = f16.trim(3000.0, 220.0)
     u = u0.copy()
     u[d6.ELEVATOR] -= 4 * DEG
@@ -170,7 +170,7 @@ def test_6dof_pull_up_load_factor_and_energy(f16):
 
 
 # --------------------------------------------------------------------------
-# Capteurs
+# Sensors
 # --------------------------------------------------------------------------
 @pytest.fixture
 def truth(f16) -> Instruments:
@@ -189,11 +189,11 @@ def test_noise_statistics_and_bias(truth):
     samples = np.array([sensors.measure(truth).alpha for _ in range(20_000)]) - truth.alpha
     assert samples.mean() == pytest.approx(sensors.bias["alpha"], abs=5e-4)
     assert samples.std() == pytest.approx(0.01, rel=0.03)
-    # le biais est fixe pendant l'épisode et retiré au reset
+    # the bias is fixed during the episode and redrawn on reset
     b0 = sensors.bias["alpha"]
     sensors.reset()
     assert sensors.bias["alpha"] != b0
-    # les autres voies ne sont pas touchées
+    # the other channels are not affected
     m = sensors.measure(truth)
     assert m.altitude == truth.altitude and m.tas == truth.tas
 
@@ -217,12 +217,12 @@ def test_sensor_yaml_config(truth):
 
 
 def test_unknown_sensor_channel():
-    with pytest.raises(ValueError, match="inconnues"):
-        SensorSuite({"vitesse_lumiere": ChannelNoise(1.0)})
+    with pytest.raises(ValueError, match="Unknown channels"):
+        SensorSuite({"speed_of_light": ChannelNoise(1.0)})
 
 
 # --------------------------------------------------------------------------
-# Enveloppe
+# Envelope
 # --------------------------------------------------------------------------
 @pytest.fixture
 def monitor() -> EnvelopeMonitor:
@@ -252,7 +252,7 @@ def test_nominal_flight_passes(monitor, truth):
         ({"mach": 2.1}, Violation.OVERSPEED),
         ({"beta": 35 * DEG}, Violation.SIDESLIP),
         ({"alpha": math.nan}, Violation.NUMERICAL),
-        ({"altitude": -5.0, "nz": 12.0}, Violation.GROUND),  # priorité au sol
+        ({"altitude": -5.0, "nz": 12.0}, Violation.GROUND),  # ground takes priority
     ],
 )
 def test_each_violation(monitor, truth, changes, expected):
@@ -269,13 +269,13 @@ def test_nan_in_state_is_detected(monitor, truth):
 
 def test_stall_needs_duration_and_resets(monitor, truth):
     stalled = dataclasses.replace(truth, alpha=35 * DEG)
-    for _ in range(20):  # 2.0 s tolérées
+    for _ in range(20):  # 2.0 s tolerated
         assert monitor.check(stalled, dt=0.1) is None
     assert monitor.check(stalled, dt=0.1) == Violation.STALL
     monitor.reset()
     for _ in range(15):
         monitor.check(stalled, dt=0.1)
-    monitor.check(truth, dt=0.1)  # sortie du décrochage : chrono remis à zéro
+    monitor.check(truth, dt=0.1)  # out of the stall: timer reset to zero
     for _ in range(15):
         assert monitor.check(stalled, dt=0.1) is None
 
@@ -286,7 +286,7 @@ def test_six_dof_overspeed_limit(truth):
 
 
 def test_crash_detected_in_simulation(f16):
-    """Piqué plein gaz depuis 1000 m : l'enveloppe arrête le vol au sol ou en survitesse."""
+    """Full-throttle dive from 1000 m: the envelope stops the flight (ground or overspeed)."""
     monitor = EnvelopeMonitor(load_envelope("f16", six_dof=True))
     x, u0 = f16.trim(1000.0, 200.0)
     u = u0.copy()

@@ -1,21 +1,21 @@
-"""Pilote automatique : tenue d'altitude, de cap, de vitesse, virage à inclinaison donnée.
+"""Autopilot: altitude hold, heading hold, airspeed hold, turn at a given bank angle.
 
-Boucles externes qui produisent une ``HighLevelCommand`` (n_z, taux de roulis, manette),
-ensuite exécutée par la boucle interne (``fbw.py``). Mêmes réglages pour 3-DOF et 6-DOF ::
+Outer loops producing a ``HighLevelCommand`` (n_z, roll rate, throttle),
+then executed by the inner loop (``fbw.py``). Same tuning for 3-DOF and 6-DOF ::
 
-    altitude --(P)--> vitesse verticale --> pente γ --(PI)--> n_z  (+ 1/cos φ en virage)
-    cap      --(P)--> inclinaison μ --(PI)--> taux de roulis
-    vitesse  --(PI)--> manette
+    altitude --(P)--> vertical speed --> flight-path angle γ --(PI)--> n_z  (+ 1/cos φ in a turn)
+    heading  --(P)--> bank μ --(PI)--> roll rate
+    airspeed --(PI)--> throttle
 
-Consignes (``AutopilotTargets``) : chaque tenue peut être désactivée (``None``) ;
-``bank`` (inclinaison imposée) a priorité sur ``heading``.
+Setpoints (``AutopilotTargets``): each hold can be disabled (``None``);
+``bank`` (imposed bank angle) takes priority over ``heading``.
 
 Usage ::
 
     ap = Autopilot(model)
     ap.reset(x, instruments)
     ap.targets = AutopilotTargets(altitude=5000, heading=math.radians(90), airspeed=250)
-    u = ap.controls(instruments, dt)      # commande du modèle
+    u = ap.controls(instruments, dt)      # model control
 """
 
 from __future__ import annotations
@@ -40,33 +40,33 @@ DEG = math.pi / 180
 @dataclass
 class AutopilotTargets:
     altitude: float | None = None  # [m]
-    heading: float | None = None  # route χ [rad]
-    airspeed: float | None = None  # vitesse vraie [m/s]
-    bank: float | None = None  # inclinaison imposée [rad] (prioritaire sur heading)
-    throttle: float | None = None  # manette fixe si airspeed est None
+    heading: float | None = None  # course χ [rad]
+    airspeed: float | None = None  # true airspeed [m/s]
+    bank: float | None = None  # imposed bank angle [rad] (takes priority over heading)
+    throttle: float | None = None  # fixed throttle if airspeed is None
 
 
 @dataclass(frozen=True)
 class AutopilotGains:
-    k_altitude: float = 0.12  # [1/s] erreur d'altitude -> vitesse verticale
+    k_altitude: float = 0.12  # [1/s] altitude error -> vertical speed
     max_vertical_speed: float = 40.0  # [m/s]
-    k_gamma: float = 0.6  # [1/s] erreur de pente -> taux de variation de pente γ̇
+    k_gamma: float = 0.6  # [1/s] flight-path angle error -> flight-path angle rate γ̇
     ki_gamma: float = 0.1  # [1/s²]
-    max_gamma_rate: float = 0.1  # [rad/s] ≈ ±2 g de correction à 200 m/s
-    nz_min: float = -0.5  # confort : le pilote automatique ne pousse pas au-delà
+    max_gamma_rate: float = 0.1  # [rad/s] ≈ ±2 g of correction at 200 m/s
+    nz_min: float = -0.5  # comfort: the autopilot does not push beyond this
     nz_max: float = 7.5
-    k_heading: float = 0.4  # [1/s] erreur de cap -> taux de virage
-    max_bank: float = 60.0 * DEG  # en tenue de cap
-    max_bank_explicit: float = 85.0 * DEG  # inclinaison imposée (virages serrés)
-    k_bank: float = 2.0  # [1/s] erreur d'inclinaison -> taux de roulis
-    ki_bank: float = 0.2  # [1/s²] supprime l'écart d'inclinaison permanent en virage serré
+    k_heading: float = 0.4  # [1/s] heading error -> turn rate
+    max_bank: float = 60.0 * DEG  # in heading hold
+    max_bank_explicit: float = 85.0 * DEG  # imposed bank angle (tight turns)
+    k_bank: float = 2.0  # [1/s] bank error -> roll rate
+    ki_bank: float = 0.2  # [1/s²] removes the steady-state bank error in tight turns
     max_roll_rate: float = 90.0 * DEG
     k_speed: float = 0.03  # [1/(m/s)]
     ki_speed: float = 0.01  # [1/(m·s)]
 
 
 class Autopilot:
-    """Pilote automatique complet : boucles externes + boucle interne (voir le module)."""
+    """Full autopilot: outer loops + inner loop (see the module docstring)."""
 
     def __init__(
         self,
@@ -85,7 +85,7 @@ class Autopilot:
         self.command = HighLevelCommand()
 
     def reset(self, x: Vec, ins: Instruments) -> None:
-        """Engage le pilote automatique sur l'état courant, sans à-coup."""
+        """Engage the autopilot on the current state, bumplessly."""
         self.inner.reset(x)
         self.gamma_pid.reset(0.0)
         self.bank_pid.reset(0.0)
@@ -98,24 +98,24 @@ class Autopilot:
 
     # ------------------------------------------------------------------
     def high_level(self, ins: Instruments, dt: float) -> HighLevelCommand:
-        """Boucles externes : consignes -> (n_z, taux de roulis, manette)."""
+        """Outer loops: setpoints -> (n_z, roll rate, throttle)."""
         g, tg = self.g, self.targets
         v = max(ins.tas, 1.0)
-        cos_bank = max(math.cos(ins.bank), 0.12)  # compensation de virage jusqu'à ≈ 83°
+        cos_bank = max(math.cos(ins.bank), 0.12)  # turn compensation up to ≈ 83°
 
-        # Tangage : altitude -> vitesse verticale -> pente -> n_z
+        # Pitch: altitude -> vertical speed -> flight-path angle -> n_z
         if tg.altitude is not None:
             vs = min(max(g.k_altitude * (tg.altitude - ins.altitude), -g.max_vertical_speed),
                      g.max_vertical_speed)  # fmt: skip
             gamma_cmd = math.asin(min(max(vs / v, -0.8), 0.8))
             gamma_rate = self.gamma_pid(gamma_cmd - ins.gamma, dt)
-            correction = gamma_rate * v / G0  # n_z supplémentaire pour courber la trajectoire
+            correction = gamma_rate * v / G0  # extra n_z to curve the flight path
             nz = math.cos(ins.gamma) / cos_bank + correction
         else:
             nz = 1.0 / cos_bank
         nz = min(max(nz, g.nz_min), g.nz_max)
 
-        # Roulis : cap -> inclinaison -> taux de roulis
+        # Roll: heading -> bank -> roll rate
         if tg.bank is not None:
             bank_cmd = min(max(tg.bank, -g.max_bank_explicit), g.max_bank_explicit)
         elif tg.heading is not None:
@@ -125,7 +125,7 @@ class Autopilot:
             bank_cmd = 0.0
         roll_rate = self.bank_pid(wrap_angle(bank_cmd - ins.bank), dt)
 
-        # Moteur
+        # Engine
         if tg.airspeed is not None:
             throttle = self.speed_pid(tg.airspeed - ins.tas, dt)
         elif tg.throttle is not None:
@@ -136,5 +136,5 @@ class Autopilot:
         return self.command
 
     def controls(self, ins: Instruments, dt: float) -> Vec:
-        """Commande du modèle (consignes -> boucles externes -> boucle interne)."""
+        """Model control (setpoints -> outer loops -> inner loop)."""
         return self.inner(ins, self.high_level(ins, dt), dt)

@@ -1,4 +1,4 @@
-"""Chargement des paramètres avion, aérodynamique polaire et propulsion."""
+"""Loading of aircraft parameters, drag-polar aerodynamics and propulsion."""
 
 import itertools
 import math
@@ -29,7 +29,7 @@ def test_load_f16_units(f16):
 
 def test_load_unknown_aircraft():
     with pytest.raises(FileNotFoundError):
-        load_aircraft("avion_inexistant")
+        load_aircraft("nonexistent_aircraft")
 
 
 def test_polar_tables_must_match_mach(f16):
@@ -50,13 +50,13 @@ def test_interp1_saturates_and_interpolates():
 def test_polar_lift_and_drag(f16):
     aero = PolarAero(f16.aero_polar)
     a = math.radians(10)
-    # pente basse vitesse ≈ 0.061/deg, cohérente avec les tables du F-16 (CL(10°) ≈ 0.7)
+    # low-speed slope ≈ 0.061/deg, consistent with the F-16 tables (CL(10°) ≈ 0.7)
     assert aero.cl(a, 0.0) == pytest.approx(0.1 + 3.5 * a)
-    assert aero.cl(a, 0.9) > aero.cl(a, 0.0)  # hausse de pente en transsonique
+    assert aero.cl(a, 0.9) > aero.cl(a, 0.0)  # lift slope rises in the transonic regime
     assert aero.alpha_for_cl(aero.cl(a, 0.85), 0.85) == pytest.approx(a)
-    # montée de traînée transsonique
+    # transonic drag rise
     assert aero.cd0(1.1) > 2 * aero.cd0(0.5)
-    # finesse max plausible pour un chasseur (≈ 8–12 en subsonique)
+    # plausible max lift-to-drag ratio for a fighter (≈ 8–12 subsonic)
     assert 8.0 < aero.max_lift_to_drag(0.5) < 12.0
 
 
@@ -67,20 +67,20 @@ def test_thrust_levels_and_lapse(f16):
     assert eng.thrust(p.mil_power, RHO0, 0.0) == pytest.approx(p.thrust_mil_sl)
     assert eng.thrust(1.0, RHO0, 0.0) == pytest.approx(p.thrust_max_sl)
     assert eng.thrust(2.0, RHO0, 0.0) == pytest.approx(p.thrust_max_sl)  # saturation
-    # monotone en puissance
+    # monotonic in power
     powers = [i / 50 for i in range(51)]
     thrusts = [eng.thrust(pw, RHO0, 0.8) for pw in powers]
     assert all(b >= a for a, b in itertools.pairwise(thrusts))
-    # baisse avec l'altitude
+    # decreases with altitude
     assert eng.thrust(1.0, isa_scalar(10_000.0)[2], 0.0) < 0.5 * p.thrust_max_sl
-    # effet d'admission borné par la limite moteur
+    # ram effect bounded by the engine limit
     assert eng.thrust(1.0, RHO0, 1.5) == pytest.approx(p.ram_limit * p.thrust_max_sl)
 
 
 @pytest.mark.parametrize(
     ("alt_ft", "mil_ratio", "max_ratio"),
-    # Rapports poussée(alt)/poussée(sol) à Mach 0 des tables Stevens & Lewis (moteur F100,
-    # src/jetsim/data/aircraft/f16_sl_tables.yaml) ; tolérance de 12 %.
+    # Thrust(alt)/thrust(sea level) ratios at Mach 0 from the Stevens & Lewis tables (F100 engine,
+    # src/jetsim/data/aircraft/f16_sl_tables.yaml); 12 % tolerance.
     [
         (10_000, 9_150 / 12_680, 15_000 / 20_000),
         (30_000, 3_950 / 12_680, 7_000 / 20_000),

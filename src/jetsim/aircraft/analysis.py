@@ -1,20 +1,20 @@
-"""Linéarisation et modes propres du modèle 6-DOF.
+"""Linearization and eigenmodes of the 6-DOF model.
 
-On linéarise autour d'un équilibre sur l'état réduit classique de la mécanique du vol :
+We linearize around a trim point on the classical reduced flight-mechanics state:
 
     s = [V, α, β, φ, θ, p, q, r]
 
-(la position, le cap ψ, le moteur et les servocommandes sont figés). On obtient ṡ ≈ A·δs + B·δu
-avec δu = [puissance, δe, δa, δr] (gouvernes appliquées directement).
+(position, heading ψ, engine and actuators are frozen). We get ṡ ≈ A·δs + B·δu
+with δu = [power, δe, δa, δr] (control surfaces applied directly).
 
-Modes attendus pour un avion stable :
+Expected modes for a stable aircraft:
 
-* longitudinal (V, α, θ, q) : **oscillation d'incidence** (short period, rapide, bien amortie)
-  et **phugoïde** (échange lent vitesse/altitude, peu amorti) ;
-* latéral (β, φ, p, r) : **roulis pur** (réel, rapide), **roulis hollandais** (Dutch roll,
-  oscillation lacet/roulis) et **spirale** (réel, lent, parfois légèrement instable).
+* longitudinal (V, α, θ, q): short period (fast, well damped)
+  and phugoid (slow speed/altitude exchange, lightly damped);
+* lateral (β, φ, p, r): roll subsidence (real, fast), **Dutch roll**
+  (yaw/roll oscillation) and spiral (real, slow, sometimes slightly unstable).
 
-Ces grandeurs serviront aussi aux lois de commande classiques (phase 6 : LQR).
+These quantities will also be used by the classical control laws (phase 6: LQR).
 """
 
 from __future__ import annotations
@@ -50,7 +50,7 @@ def reduced_state(x: Vec) -> Vec:
 
 
 def full_state(s: Vec, template: Vec) -> Vec:
-    """État complet à partir de l'état réduit ``s`` (le reste est pris dans ``template``)."""
+    """Full state from the reduced state ``s`` (the rest is taken from ``template``)."""
     x = template.copy()
     V, alpha, beta, phi, theta, p, q, r = s
     _, _, psi = euler_from_quat(template[d6.QUAT])
@@ -61,7 +61,7 @@ def full_state(s: Vec, template: Vec) -> Vec:
 
 
 def reduced_derivative(x: Vec, dx: Vec) -> Vec:
-    """ṡ à partir de x et ẋ."""
+    """ṡ from x and ẋ."""
     s = reduced_state(x)
     u, v, w = x[d6.VEL]
     du, dv, dw = dx[d6.VEL]
@@ -75,7 +75,7 @@ def reduced_derivative(x: Vec, dx: Vec) -> Vec:
 
 
 def linearize(model: d6.F16SixDof, x_trim: Vec, u_trim: Vec, eps: float = 1e-6) -> tuple[Vec, Vec]:
-    """Matrices (A, B) du modèle réduit par différences finies centrées."""
+    """(A, B) matrices of the reduced model by central finite differences."""
     s0 = reduced_state(x_trim)
     controls = np.array([x_trim[d6.POWER], *x_trim[d6.SURF]])
 
@@ -126,7 +126,7 @@ class Mode:
 
     @property
     def time_constant(self) -> float:
-        """τ = −1/Re(λ) (négatif si instable)."""
+        """τ = −1/Re(λ) (negative if unstable)."""
         re = self.eigenvalue.real
         return -1.0 / re if re != 0 else math.inf
 
@@ -144,25 +144,25 @@ def _pairs(eigs: npt.NDArray[Any]) -> tuple[list[complex], list[float]]:
 
 
 def flight_modes(A: Vec) -> dict[str, Mode]:
-    """Identifie les modes propres classiques à partir de la matrice A réduite."""
+    """Identify the classical eigenmodes from the reduced A matrix."""
     modes: dict[str, Mode] = {}
     lon = np.linalg.eigvals(A[np.ix_(LONGITUDINAL, LONGITUDINAL)])
     osc, real = _pairs(lon)
     if len(osc) == 2:
-        modes["short_period"] = Mode("oscillation d'incidence", osc[0])
-        modes["phugoid"] = Mode("phugoïde", osc[1])
-    else:  # oscillation d'incidence dégénérée en deux réels (avion instable par ex.)
+        modes["short_period"] = Mode("short period", osc[0])
+        modes["phugoid"] = Mode("phugoid", osc[1])
+    else:  # short period degenerated into two real roots (e.g. unstable aircraft)
         for i, z in enumerate(osc):
-            modes[f"longitudinal_osc_{i}"] = Mode("oscillation longitudinale", z)
+            modes[f"longitudinal_osc_{i}"] = Mode("longitudinal oscillation", z)
         for i, re in enumerate(real):
-            modes[f"longitudinal_real_{i}"] = Mode("mode longitudinal apériodique", complex(re))
+            modes[f"longitudinal_real_{i}"] = Mode("aperiodic longitudinal mode", complex(re))
 
     lat = np.linalg.eigvals(A[np.ix_(LATERAL, LATERAL)])
     osc, real = _pairs(lat)
     if osc:
-        modes["dutch_roll"] = Mode("roulis hollandais", osc[0])
+        modes["dutch_roll"] = Mode("Dutch roll", osc[0])
     if real:
-        modes["roll"] = Mode("roulis pur", complex(real[0]))
+        modes["roll"] = Mode("roll subsidence", complex(real[0]))
         if len(real) > 1:
-            modes["spiral"] = Mode("spirale", complex(real[-1]))
+            modes["spiral"] = Mode("spiral", complex(real[-1]))
     return modes

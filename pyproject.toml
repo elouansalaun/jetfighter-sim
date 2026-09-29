@@ -20,7 +20,7 @@ dependencies = [
 
 [project.optional-dependencies]
 viz = [
-    "pygame>=2.5",  # pilotage manuel au clavier / joystick
+    "pygame>=2.5",  # manual flying with keyboard / joystick
 ]
 dev = [
     "pytest>=8.0",
@@ -54,8 +54,8 @@ src = ["src", "tests"]
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "N", "UP", "B", "NPY", "RUF"]
 ignore = [
-    "N802", "N803", "N806",  # notations physiques : T, P, C_bn, Ixx...
-    "RUF001", "RUF002", "RUF003",  # caractères grecs / accents dans les docstrings
+    "N802", "N803", "N806",  # physics notation: T, P, C_bn, Ixx...
+    "RUF001", "RUF002", "RUF003",  # Greek letters / special characters in docstrings
 ]
 
 [tool.mypy]

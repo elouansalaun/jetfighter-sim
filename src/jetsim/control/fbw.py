@@ -1,35 +1,35 @@
-"""Boucle interne (« commandes de vol électriques ») : commandes de haut niveau -> gouvernes.
+"""Inner loop ("fly-by-wire flight controls"): high-level commands -> control surfaces.
 
-Tous les contrôleurs de haut niveau du projet (pilote automatique, heuristiques
-d'évitement, et l'agent RL en mode hiérarchique) parlent le même langage ::
+All high-level controllers in the project (autopilot, evasion
+heuristics, and the RL agent in hierarchical mode) speak the same language ::
 
     HighLevelCommand(nz=…, roll_rate=…, throttle=…)
 
-* ``nz``        : facteur de charge demandé [g] (1 = palier ; 9 = ressource à 9 g) ;
-* ``roll_rate`` : taux de roulis demandé [rad/s] (> 0 : vers la droite) ;
-* ``throttle``  : manette [0, 1].
+* ``nz``        : requested load factor [g] (1 = level flight; 9 = 9 g pull-up);
+* ``roll_rate`` : requested roll rate [rad/s] (> 0: to the right);
+* ``throttle``  : throttle [0, 1].
 
-``make_inner_loop(model)`` renvoie la boucle interne adaptée au modèle, qui convertit ces
-consignes en commandes du modèle.
+``make_inner_loop(model)`` returns the inner loop suited to the model, which converts these
+setpoints into model controls.
 
-6-DOF — lois de pilotage (gains dans ``FbwGains``, multipliés par q̄_ref/q̄ pour garder la
-même dynamique quand la pression dynamique varie) :
+6-DOF — control laws (gains in ``FbwGains``, multiplied by q̄_ref/q̄ to keep the
+same dynamics as dynamic pressure varies):
 
-* **tangage** : PI sur l'erreur de n_z + amortissement en q ; δe < 0 fait cabrer ;
-* **limiteur d'incidence** : dès que α approche α_max, la consigne de n_z est réduite à ce qui
-  maintient α ≤ α_max (idem côté négatif) — l'avion ne peut pas être mis en décrochage ;
-* **limiteur de facteur de charge** : n_z ∈ [n_min, n_max] ;
-* **roulis** : PI sur l'erreur de taux de roulis ;
-* **lacet** : dérapage ramené à zéro (β → 0) + amortisseur de lacet (r filtré passe-haut, pour
-  ne pas contrer le taux de lacet normal d'un virage).
+* pitch: PI on the n_z error + q damping; δe < 0 pitches nose up;
+* angle-of-attack limiter: as soon as α approaches α_max, the n_z setpoint is reduced to what
+  keeps α ≤ α_max (same on the negative side) — the aircraft cannot be stalled;
+* load-factor limiter: n_z ∈ [n_min, n_max];
+* roll: PI on the roll-rate error;
+* yaw: sideslip driven to zero (β → 0) + yaw damper (high-pass filtered r, so as
+  not to fight the normal yaw rate of a turn).
 
-Réglage (par simulation sur 0–9 km, 150–300 m/s) : échelon 1 -> 4 g en 0.4–0.9 s,
-dépassement ≤ 5 % (17 % à 9 km) ; échelon de 90°/s en roulis en 0.2–0.3 s, |β| < 1°.
-Ces lois **stabilisent aussi l'avion au centrage instable** (x_cg = 0.35 ou 0.40).
+Tuning (by simulation over 0–9 km, 150–300 m/s): 1 -> 4 g step in 0.4–0.9 s,
+overshoot ≤ 5 % (17 % at 9 km); 90°/s roll step in 0.2–0.3 s, |β| < 1°.
+These laws **also stabilize the aircraft at the unstable CG position** (x_cg = 0.35 or 0.40).
 
-3-DOF : n_z -> α commandée par inversion de la polaire + correction intégrale ; le taux de
-roulis et la manette sont transmis directement (le modèle point-masse a déjà ses propres
-lois de réponse et limiteurs).
+3-DOF: n_z -> commanded α by inverting the drag polar + integral correction; the roll
+rate and throttle are passed through directly (the point-mass model already has its own
+response laws and limiters).
 """
 
 from __future__ import annotations
@@ -58,9 +58,9 @@ class HighLevelCommand:
 
 @dataclass(frozen=True)
 class FbwGains:
-    """Gains des commandes de vol 6-DOF (au point de référence q̄_ref)."""
+    """6-DOF flight control gains (at the reference point q̄_ref)."""
 
-    q_ref: float = 18_000.0  # [Pa] ≈ 200 m/s à 3000 m
+    q_ref: float = 18_000.0  # [Pa] ≈ 200 m/s at 3000 m
     schedule_min: float = 0.3
     schedule_max: float = 3.0
     k_nz: float = 3.0 * DEG  # [rad/g]
@@ -73,18 +73,18 @@ class FbwGains:
     yaw_washout: float = 1.0  # [s]
     alpha_max: float = 25.0 * DEG
     alpha_min: float = -8.0 * DEG
-    k_alpha: float = 0.5  # [g/°] limiteur d'incidence
-    k_alpha_q: float = 0.05  # [g/(°/s)] amortissement du limiteur
+    k_alpha: float = 0.5  # [g/°] angle-of-attack limiter
+    k_alpha_q: float = 0.05  # [g/(°/s)] limiter damping
     nz_max: float = 9.0
     nz_min: float = -3.0
-    k_nz_q: float = 0.05  # [g/(°/s)] anticipation du limiteur de n_z (dépassement)
-    nz_slew_rate: float = 20.0  # [g/s] vitesse max de variation de la consigne de n_z
-    damping_exponent: float = 0.5  # amortissement en q programmé en (q̄_ref/q̄)^0.5
+    k_nz_q: float = 0.05  # [g/(°/s)] n_z limiter anticipation (overshoot)
+    nz_slew_rate: float = 20.0  # [g/s] max rate of change of the n_z setpoint
+    damping_exponent: float = 0.5  # q damping scheduled as (q̄_ref/q̄)^0.5
     roll_rate_max: float = 240.0 * DEG
 
 
 class FlyByWire:
-    """Boucle interne du modèle 6-DOF (voir le module)."""
+    """Inner loop of the 6-DOF model (see the module docstring)."""
 
     def __init__(self, model: d6.F16SixDof, gains: FbwGains | None = None) -> None:
         self.model = model
@@ -96,11 +96,11 @@ class FlyByWire:
         self.pitch = PID(self.g.k_nz, self.g.ki_nz, out_min=-self._de[1], out_max=-self._de[0])
         self.roll = PID(self.g.k_p, self.g.ki_p, out_min=-self._da[1], out_max=-self._da[0])
         self.yaw_filter = Washout(self.g.yaw_washout)
-        self.nz_command = 1.0  # consigne effectivement suivie (après limiteurs)
-        self._nz_ref = 1.0  # consigne après limitation de vitesse de variation
+        self.nz_command = 1.0  # setpoint actually tracked (after limiters)
+        self._nz_ref = 1.0  # setpoint after rate limiting
 
     def reset(self, x: Vec) -> None:
-        """Engage la boucle sans à-coup : les intégrateurs reprennent les gouvernes actuelles."""
+        """Engage the loop bumplessly: the integrators pick up the current surface positions."""
         self.pitch.reset(output=-x[d6.DE])
         self.roll.reset(output=-x[d6.DA])
         self.yaw_filter.reset(x[d6.R])
@@ -108,12 +108,12 @@ class FlyByWire:
         self._nz_ref = 1.0
 
     def limited_nz(self, ins: Instruments, nz_cmd: float) -> float:
-        """Consigne de n_z après limiteurs de facteur de charge et d'incidence."""
+        """n_z setpoint after the load-factor and angle-of-attack limiters."""
         g = self.g
         q_deg = ins.q / DEG
-        # Limiteur de facteur de charge avec anticipation par la vitesse de tangage : sans
-        # elle, un échelon 1 -> −3 g à grande vitesse dépasse −4 g (limite structurale)
-        # (l'anticipation ne fait que resserrer les limites, jamais les élargir)
+        # Load-factor limiter with pitch-rate anticipation: without
+        # it, a 1 -> −3 g step at high speed overshoots −4 g (structural limit)
+        # (the anticipation only tightens the limits, never widens them)
         nz = min(max(nz_cmd, g.nz_min - g.k_nz_q * min(q_deg, 0.0)),
                  g.nz_max - g.k_nz_q * max(q_deg, 0.0))  # fmt: skip
         upper = ins.nz + g.k_alpha * (g.alpha_max - ins.alpha) / DEG - g.k_alpha_q * q_deg
@@ -124,8 +124,8 @@ class FlyByWire:
         g = self.g
         sched = min(max(g.q_ref / max(ins.dynamic_pressure, 1.0), g.schedule_min),
                     g.schedule_max)  # fmt: skip
-        # consigne à vitesse de variation limitée : une inversion brutale (+9 -> −3 g) ne
-        # doit pas emballer la boucle (dépassement mesuré jusqu'à −5 g sans ce filtre)
+        # rate-limited setpoint: an abrupt reversal (+9 -> −3 g) must
+        # not wind up the loop (overshoot measured down to −5 g without this filter)
         step = g.nz_slew_rate * dt
         self._nz_ref = min(max(cmd.nz, self._nz_ref - step), self._nz_ref + step)
         self.nz_command = self.limited_nz(ins, self._nz_ref)
@@ -143,7 +143,7 @@ class FlyByWire:
 
 
 class PointMassInnerLoop:
-    """Boucle interne du modèle 3-DOF : n_z -> α commandée (inversion de la polaire + PI)."""
+    """Inner loop of the 3-DOF model: n_z -> commanded α (polar inversion + PI)."""
 
     def __init__(self, model: d3.PointMassAircraft, ki: float = 1.0 * DEG) -> None:
         self.model = model
@@ -178,4 +178,4 @@ def make_inner_loop(model: d3.PointMassAircraft | d6.F16SixDof) -> InnerLoop:
         return FlyByWire(model)
     if isinstance(model, d3.PointMassAircraft):
         return PointMassInnerLoop(model)
-    raise TypeError(f"Modèle non pris en charge : {type(model).__name__}")
+    raise TypeError(f"Unsupported model: {type(model).__name__}")

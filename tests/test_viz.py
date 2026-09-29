@@ -1,4 +1,4 @@
-"""Phase 5 : enregistrement et rejeu, export Tacview, tracés, pilotage manuel."""
+"""Phase 5: recording and replay, Tacview export, plots, manual flying."""
 
 import math
 
@@ -21,7 +21,7 @@ DEG = math.pi / 180
 
 
 def fly(model, x, u0, seconds=6.0, dt=0.01, substeps=10):
-    """Petit vol : mise en virage puis ressource. Renvoie l'enregistrement."""
+    """Short flight: roll into a turn then pull up. Returns the recording."""
     rec = FlightRecorder(model, physics_dt=dt, substeps=substeps)
     t = 0.0
     for k in range(round(seconds / (dt * substeps))):
@@ -37,7 +37,7 @@ def fly(model, x, u0, seconds=6.0, dt=0.01, substeps=10):
             x = model.step(x, u, dt)
         t = round(t + dt * substeps, 9)
     rec.record(t, x, u)
-    rec.event(t, "fin du test")
+    rec.event(t, "end of test")
     return rec.finish()
 
 
@@ -56,12 +56,12 @@ def flight3() -> FlightRecording:
 
 
 # --------------------------------------------------------------------------
-# Enregistrement et rejeu
+# Recording and replay
 # --------------------------------------------------------------------------
 @pytest.mark.parametrize("name", ["flight6", "flight3"])
 def test_save_load_roundtrip(request, tmp_path, name):
     rec = request.getfixturevalue(name)
-    path = rec.save(tmp_path / "vol.npz")
+    path = rec.save(tmp_path / "flight.npz")
     back = FlightRecording.load(path)
     np.testing.assert_array_equal(back.states, rec.states)
     np.testing.assert_array_equal(back.controls, rec.controls)
@@ -109,7 +109,7 @@ def parse_acmi(text: str):
 
 
 def test_acmi_structure(flight6, tmp_path):
-    path = export_recording(flight6, tmp_path / "vol.acmi")
+    path = export_recording(flight6, tmp_path / "flight.acmi")
     lines, frames = parse_acmi(path.read_text(encoding="utf-8"))
     assert lines[0] == "FileType=text/acmi/tacview"
     assert lines[1] == "FileVersion=2.2"
@@ -118,11 +118,11 @@ def test_acmi_structure(flight6, tmp_path):
     assert times == sorted(times) and len(times) == len(flight6)
     first = frames[times[0]][0]
     assert first.startswith("101,T=") and "Type=Air+FixedWing" in first
-    assert "Type=" not in frames[times[1]][0]  # propriétés fixes écrites une seule fois
+    assert "Type=" not in frames[times[1]][0]  # fixed properties written only once
     transform = first.split(",")[1][2:].split("|")
-    assert len(transform) == 6  # lon|lat|alt|roulis|tangage|lacet
+    assert len(transform) == 6  # lon|lat|alt|roll|pitch|yaw
     assert float(transform[2]) == pytest.approx(3000.0, abs=0.1)
-    assert any("Event=Message|101|fin du test" in line for line in frames[times[-1]])
+    assert any("Event=Message|101|end of test" in line for line in frames[times[-1]])
     assert "-0|" not in path.read_text(encoding="utf-8")
 
 
@@ -142,21 +142,21 @@ def test_acmi_coordinates_and_units():
 
 def test_acmi_events_escape_commas():
     w = AcmiWriter()
-    w.event(1.0, "Message", (0x101,), "surcharge, 10 g")
+    w.event(1.0, "Message", (0x101,), "overload, 10 g")
     w.remove(2.0, 0x101)
     text = w.text()
-    assert "0,Event=Message|101|surcharge\\, 10 g" in text
+    assert "0,Event=Message|101|overload\\, 10 g" in text
     assert "\n-101" in text
 
 
 def test_ground_collision_is_destroyed_event(flight6, tmp_path):
-    rec = FlightRecording(**{**flight6.__dict__, "events": [(6.0, "collision avec le sol : -3 m")]})
+    rec = FlightRecording(**{**flight6.__dict__, "events": [(6.0, "ground collision: -3 m")]})
     text = export_recording(rec, tmp_path / "crash.acmi").read_text(encoding="utf-8")
-    assert "Event=Destroyed|101|collision avec le sol" in text
+    assert "Event=Destroyed|101|ground collision" in text
 
 
 # --------------------------------------------------------------------------
-# Tracés
+# Plots
 # --------------------------------------------------------------------------
 @pytest.mark.parametrize("name", ["flight6", "flight3"])
 def test_plots_render(request, tmp_path, name):
@@ -170,20 +170,20 @@ def test_plots_render(request, tmp_path, name):
 
 
 # --------------------------------------------------------------------------
-# Pilotage manuel (cœur, sans écran)
+# Manual flying (core, no screen)
 # --------------------------------------------------------------------------
 def test_stick_moves_and_springs_back():
     s = Stick()
-    for _ in range(10):  # 0.2 s à 2.5/s
+    for _ in range(10):  # 0.2 s at 2.5/s
         s.update({"pitch_up"}, 0.02)
     assert s.pitch == pytest.approx(0.5)
     for _ in range(50):
         s.update({"pitch_up"}, 0.02)
-    assert s.pitch == 1.0  # butée
-    for _ in range(10):  # retour à 4/s
+    assert s.pitch == 1.0  # stop
+    for _ in range(10):  # return at 4/s
         s.update(set(), 0.02)
     assert s.pitch == pytest.approx(0.2)
-    s.update({"roll_left", "roll_right"}, 0.02)  # deux touches opposées : neutre
+    s.update({"roll_left", "roll_right"}, 0.02)  # two opposite keys: neutral
     assert s.roll == 0.0
 
 
@@ -200,7 +200,7 @@ def test_stick_throttle_trim_and_joystick():
 
 @pytest.mark.parametrize("kind", ["6dof", "3dof"])
 def test_manual_flight_control_signs(kind):
-    """Roulis à droite -> p > 0 et gîte > 0 ; tirer -> q > 0 et n_z > 1."""
+    """Roll right -> p > 0 and roll angle > 0; pull -> q > 0 and n_z > 1."""
     f = ManualFlight(kind)
     for _ in range(25):
         f.update({"roll_right"})
@@ -217,13 +217,13 @@ def test_manual_flight_pause_record_and_crash(tmp_path):
     f.update({"pitch_down"})
     assert f.t == 0.0 and len(f.recorder) == 0
     f.paused = False
-    for _ in range(1500):  # manche en avant à fond : surcharge négative ou sol
+    for _ in range(1500):  # stick fully forward: negative overload or ground
         f.update({"pitch_down"})
         if f.ended:
             break
     assert f.ended and f.message
     t_end = f.t
-    f.update({"pitch_down"})  # plus rien ne bouge après la fin
+    f.update({"pitch_down"})  # nothing moves after the end
     assert f.t == t_end
     paths = f.save(tmp_path)
     assert set(paths) == {"npz", "acmi", "png"} and all(p.exists() for p in paths.values())
@@ -251,7 +251,7 @@ def test_hud_renders_headless(monkeypatch):
     hud.draw(surf, f)
     f.paused = True
     hud.draw(surf, f, joystick_name="Test")
-    # le ciel et le sol sont tous deux visibles en vol quasi horizontal
+    # sky and ground are both visible in near-level flight
     colors = {tuple(surf.get_at((x, 300)))[:3] for x in range(20, 700, 20)}
     assert (70, 130, 200) in colors and (140, 95, 55) in colors
     pygame.quit()

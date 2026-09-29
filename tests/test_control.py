@@ -1,4 +1,4 @@
-"""Phase 6 : PID, commandes de vol électriques, pilote automatique, LQR, manœuvres."""
+"""Phase 6: PID, fly-by-wire flight controls, autopilot, LQR, maneuvers."""
 
 import math
 
@@ -28,7 +28,7 @@ from jetsim.control.pid import PID, Washout, wrap_angle
 from jetsim.core.constants import G0
 
 DEG = math.pi / 180
-DT = 0.02  # période de la boucle de commande (50 Hz), 2 pas physiques
+DT = 0.02  # control loop period (50 Hz), 2 physics steps
 
 
 def model(kind: str, xcg: float | None = None):
@@ -41,7 +41,7 @@ def trim(m, h, v):
 
 
 def fly_inner(m, h, v, command, t_end):
-    """Vol sous boucle interne ; ``command(t)`` -> HighLevelCommand. Renvoie le journal."""
+    """Fly under the inner loop; ``command(t)`` -> HighLevelCommand. Returns the log."""
     x, u0 = trim(m, h, v)
     loop = make_inner_loop(m)
     loop.reset(x)
@@ -74,7 +74,7 @@ def fly_autopilot(m, h, v, targets, t_end):
 
 
 def response(log, col, target, t0):
-    """(temps de montée à 90 %, dépassement [%], valeur finale)."""
+    """(90 % rise time, overshoot [%], final value)."""
     t, y = log[:, 0], log[:, col]
     y0 = y[0]
     after = t > t0
@@ -85,7 +85,7 @@ def response(log, col, target, t0):
 
 
 # --------------------------------------------------------------------------
-# PID et filtres
+# PID and filters
 # --------------------------------------------------------------------------
 def test_pid_proportional_and_integral():
     pid = PID(kp=2.0, ki=0.5)
@@ -101,7 +101,7 @@ def test_pid_anti_windup_and_bumpless_reset():
     for _ in range(100):
         out = pid(5.0, dt=0.1)
     assert out == 1.0
-    assert pid.integral < 1.0  # gelé pendant la saturation
+    assert pid.integral < 1.0  # frozen during saturation
     pid.reset(output=0.3)
     assert pid(0.0, dt=0.01) == pytest.approx(0.3)
 
@@ -109,7 +109,7 @@ def test_pid_anti_windup_and_bumpless_reset():
 def test_pid_derivative_on_measurement():
     pid = PID(kp=0.0, kd=1.0, derivative_tau=0.0)
     pid(0.0, dt=0.1, measurement=0.0)
-    assert pid(0.0, dt=0.1, measurement=1.0) == pytest.approx(-10.0)  # s'oppose à la hausse
+    assert pid(0.0, dt=0.1, measurement=1.0) == pytest.approx(-10.0)  # opposes the increase
 
 
 def test_washout_and_wrap():
@@ -122,7 +122,7 @@ def test_washout_and_wrap():
 
 
 # --------------------------------------------------------------------------
-# Commandes de vol électriques 6-DOF
+# 6-DOF fly-by-wire flight controls
 # --------------------------------------------------------------------------
 @pytest.fixture(scope="module")
 def f16() -> d6.F16SixDof:
@@ -152,10 +152,10 @@ def test_fbw_roll_rate_step_keeps_sideslip_small(f16, h, v):
 
 
 def test_fbw_alpha_limiter_prevents_stall(f16):
-    """9 g demandés à basse vitesse : l'incidence reste sous 25°."""
+    """9 g requested at low speed: the angle of attack stays below 25°."""
     log = fly_inner(f16, 3000, 130, lambda t, u0: HighLevelCommand(9.0, 0.0, 1.0), 5.0)
     assert log[:, 4].max() < 25.5 * DEG
-    assert log[-1, 1] < 3.0  # la portance disponible ne permet pas plus
+    assert log[-1, 1] < 3.0  # the available lift does not allow more
 
 
 def test_fbw_negative_g(f16):
@@ -166,7 +166,7 @@ def test_fbw_negative_g(f16):
 
 @pytest.mark.parametrize("xcg", [0.35, 0.40])
 def test_fbw_stabilizes_unstable_airframe(xcg):
-    """Centrage instable : les commandes de vol électriques tiennent 1 g sans diverger."""
+    """Unstable CG position: the fly-by-wire flight controls hold 1 g without diverging."""
     m = model("6dof", xcg=xcg)
     log = fly_inner(m, 3000, 200, lambda t, u0: HighLevelCommand(1.0, 0.0, u0[0]), 15.0)
     assert np.abs(log[:, 1] - 1.0).max() < 0.05
@@ -188,7 +188,7 @@ def test_make_inner_loop_dispatch(f16):
 
 
 # --------------------------------------------------------------------------
-# Pilote automatique
+# Autopilot
 # --------------------------------------------------------------------------
 @pytest.mark.parametrize("kind", ["3dof", "6dof"])
 def test_autopilot_altitude_heading_speed(kind):
@@ -199,16 +199,16 @@ def test_autopilot_altitude_heading_speed(kind):
 
     log = fly_autopilot(model(kind), 3000, 200, targets, 60.0)
     assert log[-1, 1] == pytest.approx(3500, abs=15)
-    assert log[:, 1].max() < 3520  # pas de dépassement notable
+    assert log[:, 1].max() < 3520  # no significant overshoot
     assert wrap_angle(log[-1, 3] - 90 * DEG) == pytest.approx(0, abs=1 * DEG)
     assert log[-1, 2] == pytest.approx(230, abs=2)
-    assert log[:, 5].max() < 4.5  # manœuvres douces
+    assert log[:, 5].max() < 4.5  # gentle maneuvers
 
 
 @pytest.mark.parametrize("n", [4.0, 5.0])
 def test_level_turn_consistent_between_models(n):
-    """Cohérence 3-DOF / 6-DOF en virage stabilisé à inclinaison imposée : altitude tenue,
-    taux de virage conforme à ω = g·√(n²−1)/V (n mesuré), et proche entre les deux modèles."""
+    """3-DOF / 6-DOF consistency in a steady turn at imposed bank: altitude held,
+    turn rate matching ω = g·√(n²−1)/V (measured n), and close between the two models."""
     bank = math.acos(1 / n)
     rates = {}
     for kind in ("3dof", "6dof"):
@@ -231,7 +231,7 @@ def test_level_turn_consistent_between_models(n):
 def test_pid_integral_zone():
     pid = PID(kp=0.0, ki=1.0, integral_zone=0.5)
     pid(2.0, dt=1.0)
-    assert pid.integral == 0.0  # erreur trop grande : pas d'intégration
+    assert pid.integral == 0.0  # error too large: no integration
     pid(0.4, dt=1.0)
     assert pid.integral == pytest.approx(0.4)
 
@@ -243,7 +243,7 @@ def test_lqr_textbook_double_integrator():
     A = np.array([[0.0, 1.0], [0.0, 0.0]])
     B = np.array([[0.0], [1.0]])
     K, _, eig = lqr(A, B, np.eye(2), np.eye(1))
-    np.testing.assert_allclose(K, [[1.0, math.sqrt(3)]], atol=1e-9)  # solution analytique
+    np.testing.assert_allclose(K, [[1.0, math.sqrt(3)]], atol=1e-9)  # analytical solution
     assert np.all(eig.real < 0)
 
 
@@ -251,12 +251,12 @@ def test_lqr_textbook_double_integrator():
 def test_lqr_stabilizes_unstable_airframe(xcg):
     m = model("6dof", xcg=xcg)
     ctrl = LongitudinalLQR.design(m, 3000, 200)
-    assert ctrl.open_loop.real.max() > 0  # avion instable
-    assert ctrl.closed_loop.real.max() < 0  # régulé : stable
+    assert ctrl.open_loop.real.max() > 0  # unstable aircraft
+    assert ctrl.closed_loop.real.max() < 0  # regulated: stable
 
     def run(controlled: bool) -> float:
         x, u = m.trim(3000, 200)
-        x[d6.Q] += 5 * DEG  # rafale : perturbation de tangage
+        x[d6.Q] += 5 * DEG  # gust: pitch disturbance
         for _ in range(750):  # 15 s
             ins = read_instruments(m, x)
             uu = ctrl(ins) if controlled else u
@@ -267,21 +267,21 @@ def test_lqr_stabilizes_unstable_airframe(xcg):
         return read_instruments(m, x).alpha
 
     assert abs(run(True) - ctrl.s_eq[1]) < 0.3 * DEG
-    assert abs(run(False) - ctrl.s_eq[1]) > 3 * DEG  # sans régulateur : divergence
+    assert abs(run(False) - ctrl.s_eq[1]) > 3 * DEG  # without the regulator: divergence
 
 
 # --------------------------------------------------------------------------
-# Manœuvres d'évitement (géométrie)
+# Evasive maneuvers (geometry)
 # --------------------------------------------------------------------------
 def test_bearings():
     assert bearing_to(0, 0, 1000, 0) == pytest.approx(0.0)
     assert bearing_to(0, 0, 0, 1000) == pytest.approx(math.pi / 2)
-    assert relative_bearing(math.pi / 2, 0.0) > 0  # menace à droite
+    assert relative_bearing(math.pi / 2, 0.0) > 0  # threat on the right
     assert relative_bearing(-math.pi / 2, 0.0) < 0
 
 
 def test_beam_and_drag_headings():
-    # menace à l'Est (090) ; on vole au Nord : mise en travers = cap 000 (déjà), sinon 180
+    # threat to the East (090); flying North: beam = heading 000 (already), otherwise 180
     assert beam_heading(math.pi / 2, 0.1) == pytest.approx(0.0, abs=1e-12)
     assert abs(beam_heading(math.pi / 2, math.pi - 0.1)) == pytest.approx(math.pi)
     assert drag_heading(math.pi / 2) == pytest.approx(-math.pi / 2)

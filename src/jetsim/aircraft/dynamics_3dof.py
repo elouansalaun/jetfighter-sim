@@ -1,42 +1,42 @@
-"""Modèle point-masse « 3-DOF » de l'avion, sans singularité (loopings possibles).
+"""Singularity-free "3-DOF" point-mass aircraft model (loops are possible).
 
-Principe
---------
-L'avion est un point matériel. Son orientation n'est décrite que par le **repère vent**
-(x_w le long de la vitesse, z_w opposé à la portance), représenté par un quaternion
-``q_w`` (vent -> NED). Les angles d'Euler de ce repère sont directement la route χ,
-la pente γ et l'inclinaison μ (gîte autour du vecteur vitesse).
+Principle
+---------
+The aircraft is a point mass. Its orientation is described only by the **wind frame**
+(x_w along the velocity, z_w opposite to lift), represented by a quaternion
+``q_w`` (wind -> NED). The Euler angles of this frame are directly the course χ,
+the flight-path angle γ and the bank angle μ (bank about the velocity vector).
 
-Les équations classiques en (V, γ, χ) ::
+The classical equations in (V, γ, χ) ::
 
     V̇ = (T·cos α − D)/m − g·sin γ
     γ̇ = [(L + T·sin α)·cos μ − m·g·cos γ] / (m·V)
     χ̇ = (L + T·sin α)·sin μ / (m·V·cos γ)
 
-sont singulières à γ = ±90°. On intègre donc plutôt la rotation du repère vent :
-avec a = [a_x, a_y, a_z] l'accélération (poussée + aéro + gravité) en axes vent,
+are singular at γ = ±90°. We therefore integrate the rotation of the wind frame instead:
+with a = [a_x, a_y, a_z] the acceleration (thrust + aero + gravity) in wind axes,
 
     V̇ = a_x ;   ω_w = [p_w, −a_z/V, a_y/V]  ;  q̇_w = ½·q_w ⊗ ω_w
 
-où p_w est le taux de roulis autour du vecteur vitesse (commandé par le pilote). C'est
-strictement équivalent aux équations ci-dessus loin de γ = ±90°, et reste valable au-delà.
+where p_w is the roll rate about the velocity vector (commanded by the pilot). This is
+strictly equivalent to the equations above away from γ = ±90°, and remains valid beyond.
 
-Hypothèses : vol symétrique (dérapage β = 0), poussée dans l'axe du fuselage, masse
-constante, Terre plate, pas de vent.
+Assumptions: symmetric flight (sideslip β = 0), thrust along the fuselage axis, constant
+mass, flat Earth, no wind.
 
-État (11) : ``[x_N, y_E, h, V, q0, q1, q2, q3, α, p_w, P]``
-    position NED horizontale et altitude [m], vitesse air [m/s], quaternion vent -> NED,
-    incidence [rad], taux de roulis autour de la vitesse [rad/s], puissance moteur [0-1].
+State (11): ``[x_N, y_E, h, V, q0, q1, q2, q3, α, p_w, P]``
+    horizontal NED position and altitude [m], airspeed [m/s], wind -> NED quaternion,
+    angle of attack [rad], roll rate about the velocity [rad/s], engine power [0-1].
 
-Commandes (3) : ``[manette, α_cmd, p_cmd]``
-    manette ∈ [0, 1] (> ``mil_power`` = post-combustion), incidence commandée [rad],
-    taux de roulis commandé [rad/s].
+Controls (3): ``[throttle, α_cmd, p_cmd]``
+    throttle ∈ [0, 1] (> ``mil_power`` = afterburner), commanded angle of attack [rad],
+    commanded roll rate [rad/s].
 
-Dynamique des commandes (ce que ferait l'avion + ses commandes de vol électriques) :
-    * α suit α_cmd au 1er ordre (τ_α), vitesse bornée, et **limiteur** : α_min ≤ α ≤ α_max
-      et n_min ≤ n ≤ n_max (limiteur de facteur de charge) ;
-    * p_w suit p_cmd au 1er ordre (τ_p), borné à ± p_max ;
-    * la puissance moteur suit la manette au 1er ordre.
+Control dynamics (what the aircraft + its fly-by-wire flight controls would do):
+    * α follows α_cmd with a first-order lag (τ_α), rate limited, with a **limiter**:
+      α_min ≤ α ≤ α_max and n_min ≤ n ≤ n_max (load-factor limiter);
+    * p_w follows p_cmd with a first-order lag (τ_p), bounded to ± p_max;
+    * engine power follows the throttle with a first-order lag.
 """
 
 from __future__ import annotations
@@ -58,43 +58,43 @@ from jetsim.core.integrators import DEFAULT_DT, rk4_step
 
 Vec = npt.NDArray[np.float64]
 
-# Indices de l'état
+# State indices
 PN, PE, H, V, Q0, Q1, Q2, Q3, ALPHA, ROLL_RATE, POWER = range(11)
 N_STATE = 11
 QUAT = slice(Q0, Q3 + 1)
 
-# Indices de la commande
+# Control indices
 THROTTLE, ALPHA_CMD, ROLL_RATE_CMD = range(3)
 N_CONTROL = 3
 
 V_EPS: float = 1.0
-"""Vitesse plancher [m/s] dans les divisions par V (évite l'explosion à vitesse nulle)."""
+"""Speed floor [m/s] in divisions by V (avoids blowing up at zero speed)."""
 
 
 class TrimError(RuntimeError):
-    """Aucun équilibre n'existe (ex. poussée insuffisante, incidence hors limites)."""
+    """No equilibrium exists (e.g. insufficient thrust, angle of attack out of limits)."""
 
 
 @dataclass(frozen=True)
 class FlightData:
-    """Grandeurs « instruments » calculées à partir de l'état (unités SI, radians)."""
+    """Instrument quantities computed from the state (SI units, radians)."""
 
     north: float
     east: float
     altitude: float
-    airspeed: float  # V (vraie) [m/s]
+    airspeed: float  # V (true) [m/s]
     mach: float
     dynamic_pressure: float  # q̄ [Pa]
-    alpha: float  # incidence
-    gamma: float  # pente
-    heading: float  # route χ
-    bank: float  # inclinaison μ
+    alpha: float  # angle of attack
+    gamma: float  # flight-path angle
+    heading: float  # course χ
+    bank: float  # bank angle μ
     roll_rate: float  # p_w
     load_factor: float  # n = (L + T·sin α)/(m·g)
     lift: float  # [N]
     drag: float  # [N]
     thrust: float  # [N]
-    power: float  # puissance moteur [0-1]
+    power: float  # engine power [0-1]
     airspeed_rate: float  # V̇ [m/s²]
     climb_rate: float  # ḣ [m/s]
     turn_rate: float  # χ̇ [rad/s]
@@ -103,7 +103,7 @@ class FlightData:
 
 
 class PointMassAircraft:
-    """Avion point-masse (voir le module pour les équations et conventions)."""
+    """Point-mass aircraft (see the module docstring for equations and conventions)."""
 
     def __init__(self, params: AircraftParams) -> None:
         self.params = params
@@ -122,7 +122,7 @@ class PointMassAircraft:
         self._tau_p = rsp.roll_time_constant
 
     # ------------------------------------------------------------------
-    # Construction d'états
+    # State construction
     # ------------------------------------------------------------------
     @staticmethod
     def make_state(
@@ -138,7 +138,7 @@ class PointMassAircraft:
         north: float = 0.0,
         east: float = 0.0,
     ) -> Vec:
-        """Construit un vecteur d'état à partir de grandeurs lisibles (angles en radians)."""
+        """Build a state vector from readable quantities (angles in radians)."""
         x = np.zeros(N_STATE)
         x[PN], x[PE], x[H], x[V] = north, east, altitude, airspeed
         x[QUAT] = quat_from_euler(bank, gamma, heading)
@@ -146,12 +146,12 @@ class PointMassAircraft:
         return x
 
     # ------------------------------------------------------------------
-    # Efforts
+    # Forces
     # ------------------------------------------------------------------
     def _aero_propulsion(
         self, h: float, v: float, alpha: float, power: float
     ) -> tuple[float, float, float, float, float, float]:
-        """Renvoie (mach, q̄, L, D, T, a_son)."""
+        """Return (mach, q̄, L, D, T, a_sound)."""
         _, _, rho, a_sound = isa_scalar(h)
         mach = v / a_sound
         qbar = 0.5 * rho * v * v
@@ -162,9 +162,9 @@ class PointMassAircraft:
         return mach, qbar, qs * cl, qs * cd, thrust, a_sound
 
     def alpha_limits(self, qbar: float, mach: float, thrust: float) -> tuple[float, float]:
-        """Plage d'incidence autorisée : bornes d'incidence ∩ bornes de facteur de charge.
+        """Allowed angle-of-attack range: AoA bounds ∩ load-factor bounds.
 
-        n(α) ≈ [q̄S·(CL0 + CLα·α) + T·α] / (m·g) est linéarisé en α pour inverser la limite.
+        n(α) ≈ [q̄S·(CL0 + CLα·α) + T·α] / (m·g) is linearized in α to invert the limit.
         """
         a_lo, a_hi = self._alpha_bounds
         n_lo, n_hi = self._n_bounds
@@ -177,7 +177,7 @@ class PointMassAircraft:
         return a_lo, max(a_lo, a_hi)
 
     # ------------------------------------------------------------------
-    # Dynamique
+    # Dynamics
     # ------------------------------------------------------------------
     def derivatives(self, t: float, x: Vec, u: Vec) -> Vec:
         """ẋ = f(t, x, u)."""
@@ -187,7 +187,7 @@ class PointMassAircraft:
 
         mach, qbar, lift, drag, thrust, _ = self._aero_propulsion(h, v, alpha, power)
 
-        # Gravité en axes vent : g · (3e ligne de C_nw)
+        # Gravity in wind axes: g · (3rd row of C_nw)
         g_x = G0 * 2.0 * (q1 * q3 - q0 * q2)
         g_y = G0 * 2.0 * (q2 * q3 + q0 * q1)
         g_z = G0 * (q0 * q0 - q1 * q1 - q2 * q2 + q3 * q3)
@@ -201,14 +201,14 @@ class PointMassAircraft:
         omega_w = (p_w, -a_z / v_safe, a_y / v_safe)
 
         dx = np.empty(N_STATE)
-        # Position : vitesse = V · x_w (1re colonne de C_nw)
+        # Position: velocity = V · x_w (1st column of C_nw)
         dx[PN] = v * (q0 * q0 + q1 * q1 - q2 * q2 - q3 * q3)
         dx[PE] = v * 2.0 * (q1 * q2 + q0 * q3)
         dx[H] = -v * 2.0 * (q1 * q3 - q0 * q2)
         dx[V] = a_x
         dx[QUAT] = quat_derivative(x[QUAT], omega_w)
 
-        # Commandes : incidence limitée, roulis, moteur
+        # Controls: limited angle of attack, roll, engine
         a_lo, a_hi = self.alpha_limits(qbar, mach, thrust)
         alpha_target = min(max(u[ALPHA_CMD], a_lo), a_hi)
         alpha_rate = (alpha_target - alpha) / self._tau_alpha
@@ -220,26 +220,26 @@ class PointMassAircraft:
 
     @staticmethod
     def post_step(x: Vec) -> Vec:
-        """Renormalise le quaternion après un pas d'intégration (modifie ``x`` en place)."""
+        """Renormalize the quaternion after an integration step (modifies ``x`` in place)."""
         q = x[QUAT]
         x[QUAT] = q / math.sqrt(q[0] * q[0] + q[1] * q[1] + q[2] * q[2] + q[3] * q[3])
         return x
 
     def step(self, x: Vec, u: Vec, dt: float = DEFAULT_DT) -> Vec:
-        """Avance d'un pas physique (RK4 + renormalisation). Renvoie un nouvel état."""
+        """Advance one physics step (RK4 + renormalization). Returns a new state."""
         return self.post_step(rk4_step(self.derivatives, 0.0, x, np.asarray(u, float), dt))
 
     # ------------------------------------------------------------------
     # Instruments
     # ------------------------------------------------------------------
     def flight_data(self, x: Vec) -> FlightData:
-        """Calcule les grandeurs de vol observables à partir de l'état."""
+        """Compute the observable flight quantities from the state."""
         h, v, alpha, power = x[H], x[V], x[ALPHA], x[POWER]
         mach, qbar, lift, drag, thrust, _ = self._aero_propulsion(h, v, alpha, power)
         mu, gamma, chi = euler_from_quat(x[QUAT])
         dx = self.derivatives(0.0, x, np.array([power, alpha, x[ROLL_RATE]]))
 
-        # χ̇ = (v_N·a_E − v_E·a_N)/(v_N² + v_E²), avec a_NED = V̇·x_w + V·ẋ_w
+        # χ̇ = (v_N·a_E − v_E·a_N)/(v_N² + v_E²), with a_NED = V̇·x_w + V·ẋ_w
         v_h2 = dx[PN] ** 2 + dx[PE] ** 2
         if v_h2 > 1e-6:
             xw_n_rate, xw_e_rate = _xw_horizontal_rate(x[QUAT], dx[QUAT])
@@ -275,23 +275,23 @@ class PointMassAircraft:
         )
 
     # ------------------------------------------------------------------
-    # Équilibre (trim)
+    # Equilibrium (trim)
     # ------------------------------------------------------------------
     def trim(
         self, altitude: float, airspeed: float, gamma: float = 0.0, load_factor: float | None = None
     ) -> tuple[float, float]:
-        """Incidence et puissance d'équilibre à vitesse constante.
+        """Trim angle of attack and power at constant speed.
 
-        Résout ``V̇ = 0`` et « facteur de charge = n » :
+        Solves ``V̇ = 0`` and "load factor = n":
             T·cos α − D − m·g·sin γ = 0
             L + T·sin α − n·m·g = 0
-        avec n = cos γ par défaut (vol rectiligne), ou n > 1 pour un virage en palier.
+        with n = cos γ by default (straight flight), or n > 1 for a level turn.
 
         Returns:
-            ``(α, puissance)``.
+            ``(α, power)``.
 
         Raises:
-            TrimError: si l'équilibre sort de l'enveloppe (poussée max, α_max, n_max).
+            TrimError: if the equilibrium leaves the envelope (max thrust, α_max, n_max).
         """
         n = math.cos(gamma) if load_factor is None else load_factor
         _, _, rho, a_sound = isa_scalar(altitude)
@@ -299,7 +299,7 @@ class PointMassAircraft:
         qs = 0.5 * rho * airspeed**2 * self.S
         a_lo, a_hi = self._alpha_bounds
         if not self._n_bounds[0] <= n <= self._n_bounds[1]:
-            raise TrimError(f"Facteur de charge {n:.2f} hors limites {self._n_bounds}.")
+            raise TrimError(f"Load factor {n:.2f} outside limits {self._n_bounds}.")
 
         power = 0.5
         alpha = 0.0
@@ -311,8 +311,8 @@ class PointMassAircraft:
 
             if normal_eq(a_lo) * normal_eq(a_hi) > 0:
                 raise TrimError(
-                    f"Pas d'incidence dans [{math.degrees(a_lo):.0f}°, {math.degrees(a_hi):.0f}°]"
-                    f" pour n = {n:.2f} à V = {airspeed:.0f} m/s, h = {altitude:.0f} m."
+                    f"No angle of attack in [{math.degrees(a_lo):.0f}°, {math.degrees(a_hi):.0f}°]"
+                    f" for n = {n:.2f} at V = {airspeed:.0f} m/s, h = {altitude:.0f} m."
                 )
             alpha_new = brentq(normal_eq, a_lo, a_hi, xtol=1e-12)
             drag = qs * self.aero.cd(self.aero.cl(alpha_new, mach), mach)
@@ -323,22 +323,22 @@ class PointMassAircraft:
 
             if axial_eq(1.0) < 0:
                 raise TrimError(
-                    f"Poussée insuffisante : {thrust_req / 1e3:.1f} kN requis, "
-                    f"{self.engine.thrust(1.0, rho, mach) / 1e3:.1f} kN disponibles "
+                    f"Insufficient thrust: {thrust_req / 1e3:.1f} kN required, "
+                    f"{self.engine.thrust(1.0, rho, mach) / 1e3:.1f} kN available "
                     f"(V = {airspeed:.0f} m/s, h = {altitude:.0f} m)."
                 )
             if axial_eq(0.0) > 0:
                 raise TrimError(
-                    "Poussée au ralenti supérieure au besoin : l'avion accélère "
+                    "Idle thrust exceeds the requirement: the aircraft accelerates "
                     f"(V = {airspeed:.0f} m/s, h = {altitude:.0f} m, "
-                    f"pente {math.degrees(gamma):.1f}°)."
+                    f"flight-path angle {math.degrees(gamma):.1f}°)."
                 )
             power_new = brentq(axial_eq, 0.0, 1.0, xtol=1e-12)
             converged = abs(alpha_new - alpha) < 1e-11 and abs(power_new - power) < 1e-11
             alpha, power = alpha_new, power_new
             if converged:
                 return alpha, power
-        raise TrimError("Le calcul d'équilibre n'a pas convergé.")
+        raise TrimError("The trim computation did not converge.")
 
     def trimmed_state(
         self,
@@ -351,17 +351,17 @@ class PointMassAircraft:
         north: float = 0.0,
         east: float = 0.0,
     ) -> tuple[Vec, Vec]:
-        """État et commande d'équilibre.
+        """Trim state and control.
 
-        * ``load_factor = 1`` : vol rectiligne (en palier ou en montée à pente ``gamma``) ;
-        * ``load_factor > 1`` avec ``gamma = 0`` : virage stabilisé en palier, inclinaison
+        * ``load_factor = 1``: straight flight (level, or climbing at flight-path angle ``gamma``);
+        * ``load_factor > 1`` with ``gamma = 0``: steady level turn, bank angle
           μ = acos(1/n).
 
         Returns:
-            ``(x, u)`` : état et commande constante qui le maintient.
+            ``(x, u)``: state and the constant control that holds it.
         """
         if load_factor > 1.0 and gamma != 0.0:
-            raise ValueError("Virage stabilisé : seul le virage en palier (gamma = 0) est géré.")
+            raise ValueError("Steady turn: only the level turn (gamma = 0) is supported.")
         n = math.cos(gamma) if load_factor == 1.0 else load_factor
         bank = 0.0 if load_factor == 1.0 else math.acos(1.0 / load_factor)
         alpha, power = self.trim(altitude, airspeed, gamma, n)
@@ -381,10 +381,10 @@ class PointMassAircraft:
 
 
 # ----------------------------------------------------------------------
-# Aides internes
+# Internal helpers
 # ----------------------------------------------------------------------
 def _xw_horizontal_rate(q: Vec, dq: Vec) -> tuple[float, float]:
-    """Dérivées des composantes Nord et Est de x_w (1re colonne de C_nw)."""
+    """Rates of the North and East components of x_w (1st column of C_nw)."""
     q0, q1, q2, q3 = q
     d0, d1, d2, d3 = dq
     dn = 2.0 * (q0 * d0 + q1 * d1 - q2 * d2 - q3 * d3)

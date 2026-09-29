@@ -1,25 +1,25 @@
-"""Enregistrement, sauvegarde et rejeu des vols.
+"""Recording, saving and replaying flights.
 
-Un enregistrement contient, à chaque instant enregistré :
+A recording contains, at each recorded instant:
 
-* le **temps**, l'**état** brut du modèle et la **commande** appliquée jusqu'à l'instant
-  suivant ;
-* les **instruments** (tableau de bord de la phase 4), pour tracer sans recalculer ;
-* des **événements** horodatés (fin de vol, message…) ;
-* de quoi **reconstruire le modèle** (type, configuration, centrage) et **rejouer** le vol :
-  à partir de l'état initial et des commandes, la simulation est déterministe et doit
-  retrouver exactement les mêmes états.
+* the time, the raw model state and the control applied until the next
+  instant;
+* the instruments (phase 4 instrument panel), to plot without recomputing;
+* timestamped events (end of flight, message…);
+* what is needed to rebuild the model (type, configuration, CG) and replay the flight:
+  from the initial state and the controls, the simulation is deterministic and must
+  reproduce exactly the same states.
 
-Format de fichier : ``.npz`` (numpy), lisible sans le projet avec ``np.load``.
+File format: ``.npz`` (numpy), readable without the project using ``np.load``.
 
 Usage ::
 
     rec = FlightRecorder(model, physics_dt=0.01, substeps=10)
-    rec.record(t, x, u)            # à chaque décision (ici toutes les 0.1 s)
+    rec.record(t, x, u)            # at each decision (here every 0.1 s)
     ...
     flight = rec.finish()
-    flight.save("outputs/flights/vol.npz")
-    states = replay(FlightRecording.load("outputs/flights/vol.npz"))
+    flight.save("outputs/flights/flight.npz")
+    states = replay(FlightRecording.load("outputs/flights/flight.npz"))
 """
 
 from __future__ import annotations
@@ -42,12 +42,12 @@ Model = d3.PointMassAircraft | d6.F16SixDof
 
 
 def model_description(model: Model, aircraft: str = "f16") -> dict[str, Any]:
-    """Ce qu'il faut pour reconstruire le modèle à l'identique."""
+    """What is needed to rebuild the exact same model."""
     if isinstance(model, d6.F16SixDof):
         return {"model": "6dof", "aircraft": aircraft, "xcg": model.xcg}
     if isinstance(model, d3.PointMassAircraft):
         return {"model": "3dof", "aircraft": aircraft}
-    raise TypeError(f"Modèle non pris en charge : {type(model).__name__}")
+    raise TypeError(f"Unsupported model: {type(model).__name__}")
 
 
 def build_model(description: dict[str, Any]) -> Model:
@@ -56,18 +56,18 @@ def build_model(description: dict[str, Any]) -> Model:
         return d6.F16SixDof(params, xcg=description.get("xcg"))
     if description["model"] == "3dof":
         return d3.PointMassAircraft(params)
-    raise ValueError(f"Type de modèle inconnu : {description['model']}")
+    raise ValueError(f"Unknown model type: {description['model']}")
 
 
 @dataclass
 class FlightRecording:
     t: Array  # (N,)
-    states: Array  # (N, n_état)
-    controls: Array  # (N, n_commande) : commande appliquée entre t[k] et t[k+1]
-    instruments: dict[str, Array]  # nom -> (N,)
+    states: Array  # (N, n_state)
+    controls: Array  # (N, n_control): control applied between t[k] and t[k+1]
+    instruments: dict[str, Array]  # name -> (N,)
     physics_dt: float
-    substeps: int  # pas physiques entre deux enregistrements
-    description: dict[str, Any]  # modèle (cf. model_description)
+    substeps: int  # physics steps between two recorded samples
+    description: dict[str, Any]  # model (see model_description)
     events: list[tuple[float, str]] = field(default_factory=list)
     metadata: dict[str, Any] = field(default_factory=dict)
 
@@ -124,7 +124,7 @@ class FlightRecording:
 
 
 class FlightRecorder:
-    """Accumule les échantillons d'un vol (voir le module)."""
+    """Accumulates the samples of a flight (see the module docstring)."""
 
     def __init__(
         self,
@@ -161,7 +161,7 @@ class FlightRecorder:
 
     def finish(self) -> FlightRecording:
         if not self._t:
-            raise ValueError("Aucun échantillon enregistré.")
+            raise ValueError("No samples recorded.")
         ins = np.array(self._ins, dtype=np.float64)
         return FlightRecording(
             t=np.array(self._t),
@@ -177,11 +177,11 @@ class FlightRecorder:
 
 
 def replay(recording: FlightRecording, model: Model | None = None) -> Array:
-    """Re-simule le vol depuis l'état initial avec les commandes enregistrées.
+    """Re-simulate the flight from the initial state with the recorded controls.
 
     Returns:
-        Les états re-simulés, de même forme que ``recording.states``. La simulation étant
-        déterministe, ils doivent coïncider avec l'enregistrement.
+        The re-simulated states, with the same shape as ``recording.states``. Since the
+        simulation is deterministic, they must match the recording.
     """
     model = model if model is not None else build_model(recording.description)
     states = np.empty_like(recording.states)

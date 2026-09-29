@@ -1,4 +1,4 @@
-"""Validation du modèle ISA contre les valeurs tabulées de l'US Standard Atmosphere 1976."""
+"""Validation of the ISA model against the tabulated values of the US Standard Atmosphere 1976."""
 
 import math
 
@@ -16,7 +16,7 @@ from jetsim.core.atmosphere import (
     mach_number,
 )
 
-# (altitude géopotentielle [m], T [K], P [Pa], rho [kg/m³]) — US Std Atm 1976
+# (geopotential altitude [m], T [K], P [Pa], rho [kg/m³]) — US Std Atm 1976
 GEOPOTENTIAL_TABLE = [
     (0.0, 288.15, 101_325.0, 1.2250),
     (11_000.0, 216.65, 22_632.06, 0.36392),
@@ -24,7 +24,7 @@ GEOPOTENTIAL_TABLE = [
     (32_000.0, 228.65, 868.02, 0.013225),
 ]
 
-# (altitude géométrique [m], T [K], P [Pa], rho [kg/m³], a [m/s]) — US Std Atm 1976
+# (geometric altitude [m], T [K], P [Pa], rho [kg/m³], a [m/s]) — US Std Atm 1976
 GEOMETRIC_TABLE = [
     (1_000.0, 281.651, 89_874.6, 1.11164, 336.435),
     (5_000.0, 255.676, 54_048.3, 0.736429, 320.545),
@@ -61,7 +61,7 @@ def test_geometric_table(h, T, P, rho, a):
 
 
 def test_continuity_at_layer_boundaries():
-    """Pas de saut de T, P, rho aux changements de couche."""
+    """No jump in T, P, rho at layer changes."""
     for H in (11_000.0, 20_000.0):
         below = isa(H - 1e-6, geometric=False)
         above = isa(H + 1e-6, geometric=False)
@@ -94,7 +94,7 @@ def test_clipping_outside_domain():
 def test_geopotential_roundtrip():
     h = np.linspace(0.0, 30_000.0, 7)
     np.testing.assert_allclose(geometric_altitude(geopotential_altitude(h)), h, rtol=1e-12)
-    # ≈ 63 m d'écart à 20 km
+    # ≈ 63 m difference at 20 km
     assert 20_000.0 - geopotential_altitude(20_000.0) == pytest.approx(62.7, abs=0.5)
 
 
@@ -105,6 +105,6 @@ def test_derived_quantities():
     assert mach_number(V, h) == pytest.approx(V / atm.speed_of_sound)
     assert dynamic_pressure(V, h) == pytest.approx(0.5 * atm.density * V**2)
     assert equivalent_airspeed(V, 0.0) == pytest.approx(V)
-    # même pression dynamique qu'au niveau de la mer à la vitesse EAS
+    # same dynamic pressure as at sea level at the EAS speed
     eas = equivalent_airspeed(V, h)
     assert 0.5 * c.RHO0 * eas**2 == pytest.approx(dynamic_pressure(V, h))

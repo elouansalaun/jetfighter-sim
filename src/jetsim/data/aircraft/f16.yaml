@@ -1,18 +1,18 @@
 # ==========================================================================
-# Paramètres de l'avion : F-16 (modèle simplifié)
+# Aircraft parameters: F-16 (simplified model)
 # ==========================================================================
-# Unités SI, SAUF les clés suffixées _deg / _deg_s (degrés, convertis au chargement).
+# SI units, EXCEPT keys suffixed _deg / _deg_s (degrees, converted on load).
 #
-# Sources :
-#   [SL]   Stevens, Lewis & Johnson, "Aircraft Control and Simulation" (modèle F-16,
-#          lui-même tiré de Nguyen et al., NASA TP-1538, 1979). Valeurs d'origine en unités
-#          impériales, rappelées en commentaire.
-#   [PUB]  Ordres de grandeur publics (fiches constructeur / US Air Force).
-#   [EST]  Estimation du projet, choisie pour donner des performances plausibles.
-#          À affiner : ce sont ces valeurs qu'on ajuste si le domaine de vol est irréaliste.
+# Sources:
+#   [SL]   Stevens, Lewis & Johnson, "Aircraft Control and Simulation" (F-16 model,
+#          itself taken from Nguyen et al., NASA TP-1538, 1979). Original values in imperial
+#          units, recalled in comments.
+#   [PUB]  Public orders of magnitude (manufacturer / US Air Force fact sheets).
+#   [EST]  Project estimate, chosen to give plausible performance.
+#          To be refined: these are the values to tune if the flight envelope is unrealistic.
 # ==========================================================================
 
-name: F-16 (simplifié)
+name: F-16 (simplified)
 
 geometry:
   wing_area: 27.87          # [SL] S = 300 ft²
@@ -21,77 +21,77 @@ geometry:
 
 mass:
   mass: 9295.44             # [SL] 1/m = 1.57e-3 slug⁻¹ (≈ 20 490 lb)
-  # Inerties (utilisées à partir de la phase 3)
+  # Inertias (used from phase 3 onward)
   Ixx: 12874.8              # [SL]  9 496 slug·ft²
   Iyy: 75673.6              # [SL] 55 814 slug·ft²
   Izz: 85552.1              # [SL] 63 100 slug·ft²
   Ixz: 1331.4               # [SL]    982 slug·ft²
 
 propulsion:
-  # Modèle simplifié d'un turboréacteur double flux avec post-combustion (PC).
-  # Poussée au point fixe, niveau de la mer [SL] (moteur F100 du modèle Stevens & Lewis) :
+  # Simplified model of an afterburning turbofan.
+  # Static thrust at sea level [SL] (F100 engine from the Stevens & Lewis model):
   thrust_idle_sl: 4715.0    # [SL]  1 060 lbf
-  thrust_mil_sl: 56404.0    # [SL] 12 680 lbf  (plein gaz sec)
-  thrust_max_sl: 88964.0    # [SL] 20 000 lbf  (pleine PC)
-  mil_power: 0.77           # [SL] position de manette correspondant au plein gaz sec
-  # Effet de l'altitude : T ∝ (ρ/ρ0)^n
-  density_exponent: 1.15    # [SL] ajusté sur les poussées statiques des tables 0–50 000 ft
-  # Effet d'admission (ram) : T ∝ (1 + k·M), borné par ram_limit × poussée statique au sol
+  thrust_mil_sl: 56404.0    # [SL] 12 680 lbf  (full dry power)
+  thrust_max_sl: 88964.0    # [SL] 20 000 lbf  (full afterburner)
+  mil_power: 0.77           # [SL] throttle position corresponding to full dry power
+  # Altitude effect: T ∝ (ρ/ρ0)^n
+  density_exponent: 1.15    # [SL] fitted to the tables' static thrusts 0–50 000 ft
+  # Ram effect: T ∝ (1 + k·M), bounded by ram_limit × static sea-level thrust
   ram_factor_mil: 0.20      # [EST]
-  ram_factor_max: 1.10      # [EST] calé pour ≈ Mach 2 à 11 km
-  ram_limit: 1.30           # [EST] calé pour ≈ Mach 1.2–1.3 au niveau de la mer
-  engine_time_constant: 1.0 # [EST] réponse du régime moteur [s]
+  ram_factor_max: 1.10      # [EST] tuned for ≈ Mach 2 at 11 km
+  ram_limit: 1.30           # [EST] tuned for ≈ Mach 1.2–1.3 at sea level
+  engine_time_constant: 1.0 # [EST] engine spool response [s]
 
 aero_polar:
-  # Polaire utilisée par le modèle point-masse (phase 2) :
+  # Drag polar used by the point-mass model (phase 2):
   #   CL = CL0 + CLα(M)·α        CD = CD0(M) + k(M)·CL²
-  CL0: 0.10                 # [SL] CZ(α=0) ≈ −0.10 dans les tables du modèle
-  CLalpha: 3.5              # [SL] pente basse vitesse ≈ 0.061 /deg entre 0 et 25°  [1/rad]
+  CL0: 0.10                 # [SL] CZ(α=0) ≈ −0.10 in the model tables
+  CLalpha: 3.5              # [SL] low-speed slope ≈ 0.061 /deg between 0 and 25°  [1/rad]
   mach:          [0.00,  0.60,  0.80,  0.90,  1.00,  1.20,  1.50,  2.00]
-  clalpha_scale: [1.00,  1.05,  1.15,  1.20,  1.15,  1.00,  0.80,  0.65]   # [EST] compressibilité
-  cd0:           [0.0175, 0.0175, 0.0180, 0.0220, 0.0380, 0.0420, 0.0400, 0.0370]  # [EST] lisse
+  clalpha_scale: [1.00,  1.05,  1.15,  1.20,  1.15,  1.00,  0.80,  0.65]   # [EST] compressibility
+  cd0:           [0.0175, 0.0175, 0.0180, 0.0220, 0.0380, 0.0420, 0.0400, 0.0370]  # [EST] clean
   k_induced:     [0.13,  0.13,  0.14,  0.16,  0.20,  0.26,  0.33,  0.42]   # [EST] AR ≈ 3, e ≈ 0.8
 
 limits:
-  n_max: 9.0                # [PUB] facteur de charge max
+  n_max: 9.0                # [PUB] max load factor
   n_min: -3.0               # [PUB]
-  alpha_max_deg: 25.0       # [PUB] limiteur d'incidence des commandes de vol électriques
+  alpha_max_deg: 25.0       # [PUB] angle-of-attack limiter of the fly-by-wire flight controls
   alpha_min_deg: -10.0      # [EST]
-  roll_rate_max_deg_s: 240.0  # [EST] taux de roulis max commandable
+  roll_rate_max_deg_s: 240.0  # [EST] max commandable roll rate
   mach_max: 2.0             # [PUB]
-  ceiling: 15240.0          # [PUB] plafond pratique 50 000 ft
+  ceiling: 15240.0          # [PUB] service ceiling 50 000 ft
 
-# Dynamique des commandes du modèle point-masse (réponse de l'avion + commandes de vol)
+# Control dynamics of the point-mass model (aircraft response + flight controls)
 point_mass_response:
-  alpha_time_constant: 0.25       # [EST] ≈ oscillation d'incidence (short period) amortie [s]
+  alpha_time_constant: 0.25       # [EST] ≈ damped short-period oscillation [s]
   alpha_rate_max_deg_s: 40.0      # [EST]
   roll_time_constant: 0.20        # [EST] [s]
 
-# Modèle 6-DOF (phase 3)
+# 6-DOF model (phase 3)
 six_dof:
-  tables_file: f16_sl_tables.yaml   # tables aéro + moteur Stevens & Lewis (même dossier)
-  xcg_ref: 0.35             # [SL] centrage de référence des tables (fraction de c̄)
-  xcg: 0.30                 # [EST] centrage retenu : avion naturellement stable (option (a) de la roadmap).
-                            # 0.35 = nominal Stevens & Lewis, légèrement INSTABLE en tangage (comme le vrai F-16)
-  actuator_time_constant: 0.0495  # [SL] servocommandes : 1er ordre à 20.2 rad/s
+  tables_file: f16_sl_tables.yaml   # Stevens & Lewis aero + engine tables (same folder)
+  xcg_ref: 0.35             # [SL] reference CG position of the tables (fraction of c̄)
+  xcg: 0.30                 # [EST] chosen CG position: naturally stable aircraft (option (a) of the roadmap).
+                            # 0.35 = Stevens & Lewis nominal, slightly UNSTABLE in pitch (like the real F-16)
+  actuator_time_constant: 0.0495  # [SL] actuators: first order at 20.2 rad/s
 
-# Gouvernes — débattements et vitesses [SL]
+# Control surfaces — deflections and rates [SL]
 control_surfaces:
   elevator: {min_deg: -25.0, max_deg: 25.0, rate_max_deg_s: 60.0}
   aileron:  {min_deg: -21.5, max_deg: 21.5, rate_max_deg_s: 80.0}
   rudder:   {min_deg: -30.0, max_deg: 30.0, rate_max_deg_s: 120.0}
 
-# Enveloppe de vol : au-delà, le vol est perdu (fin d'épisode pour l'apprentissage)
+# Flight envelope: beyond it, the flight is lost (end of episode for learning)
 envelope:
-  min_altitude: 0.0         # [m] sol (terrain plat)
-  max_altitude: 17000.0     # [m] au-delà du plafond du modèle
-  min_airspeed: 50.0        # [m/s] vitesse vraie mini (bien sous la vitesse de décrochage)
-  max_mach: 2.0             # [PUB] Mach max du F-16
-  n_max: 10.0               # [EST] limite structurale : 9 g des commandes de vol + marge
+  min_altitude: 0.0         # [m] ground (flat terrain)
+  max_altitude: 17000.0     # [m] beyond the model's ceiling
+  min_airspeed: 50.0        # [m/s] minimum true airspeed (well below stall speed)
+  max_mach: 2.0             # [PUB] F-16 max Mach
+  n_max: 10.0               # [EST] structural limit: 9 g from the flight controls + margin
   n_min: -4.0               # [EST]
-  alpha_stall_deg: 30.0     # [EST] incidence de décrochage (hors limiteur de 25°)
-  stall_duration: 2.0       # [EST] durée tolérée au-delà de alpha_stall [s]
-  beta_max_deg: 30.0        # [SL] domaine des tables aéro
-  # Le modèle 6-DOF (tables sans effet du Mach) est limité au subsonique
+  alpha_stall_deg: 30.0     # [EST] stall angle of attack (beyond the 25° limiter)
+  stall_duration: 2.0       # [EST] time tolerated beyond alpha_stall [s]
+  beta_max_deg: 30.0        # [SL] domain of the aero tables
+  # The 6-DOF model (tables without Mach effect) is limited to subsonic flight
   six_dof_overrides:
     max_mach: 0.95

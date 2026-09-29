@@ -3,11 +3,11 @@ FileVersion=2.2
 0,ReferenceTime=2026-01-01T12:00:00Z
 0,ReferenceLongitude=-6
 0,ReferenceLatitude=46
-0,Title=Mission pilote automatique
+0,Title=Autopilot mission
 0,Author=jetfighter-sim
 0,DataSource=jetfighter-sim (simulation)
 #0
-101,T=0|0|3000|0|1.48|0,Name=F-16C,Type=Air+FixedWing,Color=Blue,Coalition=Allies,Pilot=Pilote automatique,TAS=200,CAS=174.595,Mach=0.609,AOA=1.477,AOS=0,AGL=3000,Throttle=0.143
+101,T=0|0|3000|0|1.48|0,Name=F-16C,Type=Air+FixedWing,Color=Blue,Coalition=Allies,Pilot=Autopilot,TAS=200,CAS=174.595,Mach=0.609,AOA=1.477,AOS=0,AGL=3000,Throttle=0.143
 #0.02
 101,T=0|0.000036|3000|0.01|1.48|0,TAS=200,CAS=174.595,Mach=0.609,AOA=1.478,AOS=0,AGL=3000,Throttle=0.146
 #0.04

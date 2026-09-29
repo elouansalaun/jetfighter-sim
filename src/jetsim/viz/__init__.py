@@ -1,1 +1,1 @@
-"""Visualisation : tracés matplotlib, export Tacview (phase 5)."""
+"""Visualization: matplotlib plots, Tacview export (phase 5)."""

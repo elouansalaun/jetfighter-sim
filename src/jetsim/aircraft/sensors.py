@@ -1,15 +1,15 @@
-"""Capteurs imparfaits : bruit blanc et biais sur les instruments.
+"""Imperfect sensors: white noise and bias on the instruments.
 
-Chaque voie (``"alpha"``, ``"altitude"``, ``"nz"``…) peut recevoir :
+Each channel (``"alpha"``, ``"altitude"``, ``"nz"``…) can receive:
 
-* un **bruit** gaussien d'écart-type ``std``, tiré à chaque lecture ;
-* un **biais** constant pendant un épisode, tiré au ``reset()`` avec l'écart-type
-  ``bias_std`` (calibrage imparfait, différent d'un vol à l'autre).
+* a Gaussian noise with standard deviation ``std``, drawn at each reading;
+* a bias constant over an episode, drawn at ``reset()`` with standard deviation
+  ``bias_std`` (imperfect calibration, different from one flight to the next).
 
-Par défaut les capteurs sont parfaits. Le bruit sert à la robustesse des politiques RL
-(phase 11) : une politique entraînée sur des mesures parfaites peut être fragile.
+By default the sensors are perfect. Noise is used for the robustness of RL policies
+(phase 11): a policy trained on perfect measurements can be brittle.
 
-Configuration YAML (valeurs SI ; suffixe ``_deg`` pour les angles en degrés) ::
+YAML configuration (SI values; ``_deg`` suffix for angles in degrees) ::
 
     alpha: {std_deg: 0.2, bias_std_deg: 0.5}
     altitude: {std: 5.0}
@@ -33,8 +33,8 @@ DEG_TO_RAD = math.pi / 180
 
 @dataclass(frozen=True)
 class ChannelNoise:
-    std: float = 0.0  # écart-type du bruit à chaque lecture
-    bias_std: float = 0.0  # écart-type du biais tiré à chaque épisode
+    std: float = 0.0  # standard deviation of the noise at each reading
+    bias_std: float = 0.0  # standard deviation of the bias drawn at each episode
 
     @classmethod
     def from_dict(cls, d: dict[str, float]) -> ChannelNoise:
@@ -44,7 +44,7 @@ class ChannelNoise:
 
 
 class SensorSuite:
-    """Applique bruit et biais aux instruments (voir le module)."""
+    """Apply noise and bias to the instruments (see the module docstring)."""
 
     def __init__(
         self,
@@ -54,7 +54,7 @@ class SensorSuite:
         self.noise = dict(noise or {})
         unknown = set(self.noise) - set(INSTRUMENT_NAMES)
         if unknown:
-            raise ValueError(f"Voies inconnues : {sorted(unknown)}")
+            raise ValueError(f"Unknown channels: {sorted(unknown)}")
         self.rng = rng if rng is not None else np.random.default_rng()
         self.bias: dict[str, float] = {}
         self.reset()
@@ -77,7 +77,7 @@ class SensorSuite:
         return all(n.std == 0.0 and n.bias_std == 0.0 for n in self.noise.values())
 
     def reset(self, rng: np.random.Generator | None = None) -> None:
-        """Nouvel épisode : tire de nouveaux biais (et change de générateur si fourni)."""
+        """New episode: draw new biases (and switch generator if one is provided)."""
         if rng is not None:
             self.rng = rng
         self.bias = {
@@ -86,7 +86,7 @@ class SensorSuite:
         }
 
     def measure(self, truth: Instruments) -> Instruments:
-        """Mesures bruitées à partir des valeurs vraies."""
+        """Noisy measurements from the true values."""
         if not self.noise:
             return truth
         changes = {}

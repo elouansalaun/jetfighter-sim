@@ -1,10 +1,10 @@
-"""Performances du modèle point-masse : domaine de vol, montée, virage.
+"""Point-mass model performance: flight envelope, climb, turn.
 
-Ces calculs servent à **valider** le modèle (comparaison aux ordres de grandeur publics
-du F-16) et à choisir des conditions initiales réalistes pour l'apprentissage.
+These computations are used to validate the model (comparison with the public
+orders of magnitude of the F-16) and to choose realistic initial conditions for learning.
 
-Toutes les fonctions sont en vol symétrique quasi stationnaire, pleine puissance
-(post-combustion) sauf mention contraire.
+All functions assume quasi-steady symmetric flight at full power
+(afterburner) unless stated otherwise.
 """
 
 from __future__ import annotations
@@ -32,11 +32,11 @@ def speed_of_sound(h: float) -> float:
 
 
 def excess_power(ac: PointMassAircraft, h: float, v: float, power: float = 1.0) -> float:
-    """Puissance spécifique excédentaire Ps [m/s] en palier (n = 1) à la puissance donnée.
+    """Specific excess power Ps [m/s] in level flight (n = 1) at the given power.
 
-    Ps = V·(T·cos α − D)/(m·g) : taux de montée possible à vitesse constante (ou, divisé
-    par V/g, accélération possible en palier). Renvoie ``-inf`` si le palier est impossible
-    (incidence hors limites).
+    Ps = V·(T·cos α − D)/(m·g): achievable climb rate at constant speed (or, divided
+    by V/g, achievable acceleration in level flight). Returns ``-inf`` if level flight is
+    impossible (angle of attack out of limits).
     """
     _, _, rho, a = isa_scalar(h)
     mach = v / a
@@ -57,7 +57,7 @@ def excess_power(ac: PointMassAircraft, h: float, v: float, power: float = 1.0) 
 def level_speed_range(
     ac: PointMassAircraft, h: float, power: float = 1.0, mach_max: float = 3.0
 ) -> tuple[float, float] | None:
-    """Vitesses min et max [m/s] en palier stabilisé (Ps ≥ 0), ou ``None`` si impossible."""
+    """Min and max speeds [m/s] in steady level flight (Ps ≥ 0), or ``None`` if impossible."""
     a = speed_of_sound(h)
     machs = np.linspace(0.05, mach_max, 600)
     ps = np.array([excess_power(ac, h, m * a, power) for m in machs])
@@ -77,19 +77,19 @@ def level_speed_range(
 
 
 def max_rate_of_climb(ac: PointMassAircraft, h: float, power: float = 1.0) -> float:
-    """Taux de montée max [m/s] à l'altitude ``h`` (max de Ps sur la vitesse)."""
+    """Max rate of climb [m/s] at altitude ``h`` (max of Ps over speed)."""
     a = speed_of_sound(h)
     return max(excess_power(ac, h, m * a, power) for m in np.linspace(0.3, 2.5, 221))
 
 
 def ceiling(ac: PointMassAircraft, climb_rate: float = 0.5, power: float = 1.0) -> float:
-    """Plafond [m] : altitude où le taux de montée max tombe à ``climb_rate``
-    (0.5 m/s ≈ 100 ft/min, définition du plafond pratique)."""
+    """Ceiling [m]: altitude where the max rate of climb drops to ``climb_rate``
+    (0.5 m/s ≈ 100 ft/min, the service ceiling definition)."""
     return brentq(lambda h: max_rate_of_climb(ac, h, power) - climb_rate, 0.0, 25_000.0, xtol=1.0)
 
 
 def sustained_turn(ac: PointMassAircraft, h: float, v: float) -> TurnPerformance | None:
-    """Virage stabilisé en palier le plus serré (poussée = traînée) à (h, V)."""
+    """Tightest sustained level turn (thrust = drag) at (h, V)."""
     n_max = ac.params.limits.n_max
 
     def feasible(n: float) -> bool:
@@ -113,7 +113,7 @@ def sustained_turn(ac: PointMassAircraft, h: float, v: float) -> TurnPerformance
 
 
 def instantaneous_turn(ac: PointMassAircraft, h: float, v: float) -> TurnPerformance:
-    """Virage instantané max (α_max ou n_max), sans tenir la vitesse."""
+    """Max instantaneous turn (α_max or n_max), without holding speed."""
     _, _, rho, a = isa_scalar(h)
     mach = v / a
     qs = 0.5 * rho * v * v * ac.S

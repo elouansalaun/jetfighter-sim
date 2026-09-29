@@ -1,29 +1,29 @@
-"""Modèle corps rigide « 6-DOF » du F-16, piloté par ses gouvernes et sa manette.
+"""Rigid-body "6-DOF" F-16 model, flown through its control surfaces and throttle.
 
-Équations (axes corps, Terre plate, pas de vent) ::
+Equations (body axes, flat Earth, no wind) ::
 
-    m·(v̇ + ω × v) = F_aéro + F_poussée + m·g
-    I·ω̇ + ω × (I·ω + h_moteur) = M_aéro
-    q̇ = ½·q ⊗ [0, ω]                   (attitude, quaternion corps -> NED)
+    m·(v̇ + ω × v) = F_aero + F_thrust + m·g
+    I·ω̇ + ω × (I·ω + h_engine) = M_aero
+    q̇ = ½·q ⊗ [0, ω]                   (attitude, body -> NED quaternion)
     ṗ_NED = C_nb(q)·v
 
-avec v = [u, v, w] la vitesse (= vitesse air), ω = [p, q, r], I le tenseur d'inertie
-(produit Ixz inclus) et h_moteur = [h_e, 0, 0] le moment cinétique du moteur (effet
-gyroscopique). Efforts aérodynamiques : ``F16Aero`` (tables Stevens & Lewis).
+with v = [u, v, w] the velocity (= airspeed), ω = [p, q, r], I the inertia tensor
+(including the Ixz product) and h_engine = [h_e, 0, 0] the engine angular momentum
+(gyroscopic effect). Aerodynamic forces: ``F16Aero`` (Stevens & Lewis tables).
 
-État (17) :
+State (17):
     ``[x_N, y_E, h, u, v, w, q0, q1, q2, q3, p, q, r, P, δe, δa, δr]``
-    position [m], vitesse corps [m/s], quaternion, vitesses angulaires [rad/s],
-    puissance moteur [0-1] (0.5 = plein gaz sec), gouvernes effectives [rad].
+    position [m], body velocity [m/s], quaternion, angular rates [rad/s],
+    engine power [0-1] (0.5 = full dry power), effective control surfaces [rad].
 
-Commandes (4) : ``[manette, δe_cmd, δa_cmd, δr_cmd]``
-    manette ∈ [0, 1], consignes de gouvernes [rad]. Conventions de signe standard :
-    δe > 0 pique, δa > 0 roule à gauche, δr > 0 lacet à gauche.
+Controls (4): ``[throttle, δe_cmd, δa_cmd, δr_cmd]``
+    throttle ∈ [0, 1], surface commands [rad]. Standard sign conventions:
+    δe > 0 pitches nose down, δa > 0 rolls left, δr > 0 yaws left.
 
-Servocommandes : 1er ordre (τ ≈ 0.05 s), saturées en position et en vitesse.
+Actuators: first order (τ ≈ 0.05 s), position and rate limited.
 
-Domaine de validité : celui des tables (−10° ≤ α ≤ 45°, |β| ≤ 30°), subsonique
-(pas d'effet du Mach dans les tables aéro ; la poussée, elle, dépend du Mach).
+Validity domain: that of the tables (−10° ≤ α ≤ 45°, |β| ≤ 30°), subsonic
+(no Mach effect in the aero tables; thrust, however, does depend on Mach).
 """
 
 from __future__ import annotations
@@ -54,7 +54,7 @@ from jetsim.core.integrators import DEFAULT_DT, rk4_step
 Vec = npt.NDArray[np.float64]
 Atmosphere = Callable[[float], tuple[float, float, float, float]]
 
-# Indices de l'état
+# State indices
 PN, PE, H, U, V, W, Q0, Q1, Q2, Q3, P, Q, R, POWER, DE, DA, DR = range(17)
 N_STATE = 17
 VEL = slice(U, W + 1)
@@ -62,18 +62,18 @@ QUAT = slice(Q0, Q3 + 1)
 RATES = slice(P, R + 1)
 SURF = slice(DE, DR + 1)
 
-# Indices de la commande
+# Control indices
 THROTTLE, ELEVATOR, AILERON, RUDDER = range(4)
 N_CONTROL = 4
 
 
 class TrimError(RuntimeError):
-    """L'équilibrage n'a pas convergé (point de vol hors enveloppe ?)."""
+    """Trimming did not converge (flight point outside the envelope?)."""
 
 
 @dataclass(frozen=True)
 class FlightData6:
-    """Grandeurs « instruments » du modèle 6-DOF (SI, radians)."""
+    """Instrument quantities of the 6-DOF model (SI, radians)."""
 
     north: float
     east: float
@@ -89,11 +89,11 @@ class FlightData6:
     p: float
     q: float
     r: float
-    gamma: float  # pente
-    course: float  # route χ
+    gamma: float  # flight-path angle
+    course: float  # course χ
     climb_rate: float
-    load_factor: float  # n_z = −Z_aéro/(m·g), positif en ressource
-    lateral_load_factor: float  # n_y = Y_aéro/(m·g)
+    load_factor: float  # n_z = −Z_aero/(m·g), positive in a pull-up
+    lateral_load_factor: float  # n_y = Y_aero/(m·g)
     thrust: float
     power: float
     elevator: float
@@ -102,7 +102,7 @@ class FlightData6:
 
 
 class F16SixDof:
-    """Modèle 6-DOF du F-16 (voir le module)."""
+    """6-DOF F-16 model (see the module docstring)."""
 
     def __init__(
         self,
@@ -113,7 +113,7 @@ class F16SixDof:
         gravity: float = G0,
     ) -> None:
         if params.six_dof is None:
-            raise ValueError("La configuration avion n'a pas de section six_dof.")
+            raise ValueError("The aircraft configuration has no six_dof section.")
         sd = params.six_dof
         raw = load_tables_yaml(sd.tables_path)
         tables = F16AeroTables.from_dict(raw)
@@ -143,7 +143,7 @@ class F16SixDof:
         ]
 
     # ------------------------------------------------------------------
-    # Construction d'états
+    # State construction
     # ------------------------------------------------------------------
     @staticmethod
     def make_state(
@@ -161,7 +161,7 @@ class F16SixDof:
         north: float = 0.0,
         east: float = 0.0,
     ) -> Vec:
-        """État à partir de grandeurs lisibles. Par défaut, assiette θ = α (vol en palier)."""
+        """State from readable quantities. By default, pitch θ = α (level flight)."""
         x = np.zeros(N_STATE)
         x[PN], x[PE], x[H] = north, east, altitude
         x[VEL] = body_velocity_from_aero(airspeed, alpha, beta)
@@ -172,10 +172,10 @@ class F16SixDof:
         return x
 
     # ------------------------------------------------------------------
-    # Dynamique
+    # Dynamics
     # ------------------------------------------------------------------
     def forces_moments(self, x: Vec) -> tuple[Vec, Vec, float, float, float]:
-        """Efforts en axes corps : (F_aéro + poussée [N], M_aéro [N·m], Mach, q̄, poussée)."""
+        """Body-axis forces: (F_aero + thrust [N], M_aero [N·m], Mach, q̄, thrust)."""
         V_air, alpha, beta = aero_angles(x[VEL])
         _, _, rho, a_sound = self.atmosphere(x[H])
         mach = V_air / a_sound
@@ -197,7 +197,7 @@ class F16SixDof:
         q0, q1, q2, q3 = x[QUAT]
         g = self.g
 
-        # Gravité en axes corps : g · (3e ligne de C_nb)
+        # Gravity in body axes: g · (3rd row of C_nb)
         grav = g * np.array(
             [
                 2.0 * (q1 * q3 - q0 * q2),
@@ -212,7 +212,7 @@ class F16SixDof:
         dx[RATES] = self.inertia_inv @ (moment - np.cross(omega, h_total))
         dx[QUAT] = quat_derivative(x[QUAT], omega)
 
-        # Navigation : vitesse NED = C_nb · v
+        # Navigation: NED velocity = C_nb · v
         u_, v_, w_ = uvw
         dx[PN] = (
             (q0 * q0 + q1 * q1 - q2 * q2 - q3 * q3) * u_
@@ -230,7 +230,7 @@ class F16SixDof:
             + (q0 * q0 - q1 * q1 - q2 * q2 + q3 * q3) * w_
         )
 
-        # Moteur et servocommandes
+        # Engine and actuators
         dx[POWER] = self.engine.power_rate(x[POWER], self.engine.commanded_power(u[THROTTLE]))
         for k, (lo, hi, rate_max) in enumerate(self._surf_limits):
             target = min(max(u[ELEVATOR + k], lo), hi)
@@ -240,13 +240,13 @@ class F16SixDof:
 
     @staticmethod
     def post_step(x: Vec) -> Vec:
-        """Renormalise le quaternion (modifie ``x`` en place)."""
+        """Renormalize the quaternion (modifies ``x`` in place)."""
         q = x[QUAT]
         x[QUAT] = q / math.sqrt(q[0] * q[0] + q[1] * q[1] + q[2] * q[2] + q[3] * q[3])
         return x
 
     def step(self, x: Vec, u: Vec, dt: float = DEFAULT_DT) -> Vec:
-        """Un pas physique RK4 + renormalisation."""
+        """One RK4 physics step + renormalization."""
         return self.post_step(rk4_step(self.derivatives, 0.0, x, np.asarray(u, float), dt))
 
     # ------------------------------------------------------------------
@@ -287,22 +287,22 @@ class F16SixDof:
         )
 
     # ------------------------------------------------------------------
-    # Équilibrage
+    # Trimming
     # ------------------------------------------------------------------
     def trim(
         self, altitude: float, airspeed: float, gamma: float = 0.0, yaw: float = 0.0
     ) -> tuple[Vec, Vec]:
-        """Vol rectiligne stabilisé, ailes à plat, pente ``gamma`` (0 = palier).
+        """Steady straight flight, wings level, flight-path angle ``gamma`` (0 = level).
 
-        Inconnues : α, β, manette, δe, δa, δr. Équations : u̇ = v̇ = ẇ = ṗ = q̇ = ṙ = 0,
-        avec p = q = r = 0, puissance moteur à l'équilibre, gouvernes à leur consigne et
-        θ tel que la pente soit ``gamma``.
+        Unknowns: α, β, throttle, δe, δa, δr. Equations: u̇ = v̇ = ẇ = ṗ = q̇ = ṙ = 0,
+        with p = q = r = 0, engine power at equilibrium, surfaces at their command and
+        θ such that the flight-path angle is ``gamma``.
 
         Returns:
-            ``(x, u)`` : état et commande d'équilibre.
+            ``(x, u)``: trim state and control.
 
         Raises:
-            TrimError: si le résidu reste significatif (point hors enveloppe).
+            TrimError: if the residual stays significant (point outside the envelope).
         """
 
         def build(z: Vec) -> tuple[Vec, Vec]:
@@ -337,7 +337,7 @@ class F16SixDof:
         sol = least_squares(residual, z0, bounds=(lo, hi), xtol=1e-14, ftol=1e-14, gtol=1e-14)
         if np.max(np.abs(sol.fun)) > 1e-6:
             raise TrimError(
-                f"Équilibre introuvable à V = {airspeed:.0f} m/s, h = {altitude:.0f} m, "
-                f"γ = {math.degrees(gamma):.1f}° (résidu {np.max(np.abs(sol.fun)):.2e})."
+                f"No trim found at V = {airspeed:.0f} m/s, h = {altitude:.0f} m, "
+                f"γ = {math.degrees(gamma):.1f}° (residual {np.max(np.abs(sol.fun)):.2e})."
             )
         return build(sol.x)

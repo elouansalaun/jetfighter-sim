@@ -134,8 +134,7 @@ on the real code. See [`notebooks/`](notebooks/).
 | 5 | [Visualization](notebooks/05_visualization.ipynb) | Recording, bit-exact replay, plots, Tacview export, manual flight |
 | 6 | [Classical control](notebooks/06_classical_control.ipynb) | PID, fly-by-wire, autopilot, LQR, evasion primitives |
 
-Notebooks 7–8 (Gymnasium environment, RL training) are in
-[jetfighter-rl](https://github.com/elouansalaun/jetfighter-rl/tree/main/notebooks).
+
 
 ## Repository layout
 
@@ -169,7 +168,7 @@ project_roadmap.md   detailed roadmap and decision log (in French)
 | Time step | Fixed-step physics at **dt = 0.01 s (100 Hz)** with RK4; controllers decide at 10–50 Hz |
 | Matrix names | `C_ab` maps a vector from frame b to frame a: `v_a = C_ab @ v_b` |
 
-Code comments and docstrings are in French; notebooks and READMEs are in English.
+
 
 ## Development
 
