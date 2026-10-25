@@ -3,12 +3,6 @@
 The YAML is in SI units, except keys suffixed ``_deg`` / ``_deg_s`` which are converted
 here to radians. The rest of the code only handles the dataclasses below: switching aircraft
 means switching YAML file.
-
-Usage ::
-
-    from jetsim.aircraft.params import load_aircraft
-    p = load_aircraft("f16")          # looks for src/jetsim/data/aircraft/f16.yaml
-    p = load_aircraft("my/file.yaml")
 """
 
 from __future__ import annotations

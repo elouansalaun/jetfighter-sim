@@ -1,6 +1,5 @@
 # jetfighter-sim
 
-[![tests](https://github.com/elouansalaun/jetfighter-sim/actions/workflows/tests.yml/badge.svg)](https://github.com/elouansalaun/jetfighter-sim/actions/workflows/tests.yml)
 ![python](https://img.shields.io/badge/python-3.10%20%7C%203.12-blue)
 ![license](https://img.shields.io/badge/license-MIT-green)
 
@@ -119,20 +118,17 @@ This is how [jetfighter-rl](https://github.com/elouansalaun/jetfighter-rl) depen
 Figures and Tacview files land in [`results/`](results/) (the committed versions are
 reference outputs), manual flights in `outputs/` (not versioned).
 
-## Notebooks
+## Steps
 
-A guided tour, one notebook per phase: the idea, the key equations, and runnable examples
-on the real code. See [`notebooks/`](notebooks/).
 
-| # | Notebook | Content |
+| # | Step | Content |
 |---|---|---|
-| 0 | [Project overview](notebooks/00_project_overview.ipynb) | Goal, architecture, design decisions, conventions, validation at a glance |
-| 1 | [Physics foundations](notebooks/01_physics_foundations.ipynb) | Reference frames, quaternions vs gimbal lock, ISA atmosphere, RK4 |
-| 2 | [Point-mass 3-DOF](notebooks/02_point_mass_3dof.ipynb) | Drag polar, thrust, trim, flight envelope, turn performance, a loop |
-| 3 | [Rigid-body 6-DOF](notebooks/03_rigid_body_6dof.ipynb) | NASA tables, static stability, CG, actuators, natural modes |
-| 4 | [Instruments & envelope](notebooks/04_instruments_envelope.ipynb) | TAS/CAS/EAS, energy-maneuverability, noisy sensors, envelope monitor |
-| 5 | [Visualization](notebooks/05_visualization.ipynb) | Recording, bit-exact replay, plots, Tacview export, manual flight |
-| 6 | [Classical control](notebooks/06_classical_control.ipynb) | PID, fly-by-wire, autopilot, LQR, evasion primitives |
+| 1 | Physics foundations | Reference frames, quaternions vs gimbal lock, ISA atmosphere, RK4 |
+| 2 | Point-mass 3-DOF | Drag polar, thrust, trim, flight envelope, turn performance, a loop |
+| 3 | Rigid-body 6-DOF | NASA tables, static stability, CG, actuators, natural modes |
+| 4 | Instruments & envelope | TAS/CAS/EAS, energy-maneuverability, noisy sensors, envelope monitor |
+| 5 | Visualization| Recording, bit-exact replay, plots, Tacview export, manual flight |
+| 6 | Classical control | PID, fly-by-wire, autopilot, LQR, evasion primitives |
 
 
 

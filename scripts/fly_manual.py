@@ -17,11 +17,6 @@ Keys (identified by the printed symbol: valid on AZERTY as well as QWERTY):
     Esc                     quit (automatic save)
 
 Joystick: detected automatically (axes 0 roll, 1 pitch, 2 yaw, 3 throttle).
-
-Installation: ``pip install -e ".[viz]"`` (pygame).
-
-Usage:
-    python scripts/fly_manual.py [--model 6dof|3dof] [--altitude 3000] [--speed 200]
 """
 
 from __future__ import annotations

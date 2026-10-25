@@ -25,3 +25,6 @@ project_roadmap.md
 .DS_Store
 .vscode/
 .idea/
+
+#notebooks
+notebooks

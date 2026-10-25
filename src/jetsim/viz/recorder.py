@@ -10,16 +10,6 @@ A recording contains, at each recorded instant:
   from the initial state and the controls, the simulation is deterministic and must
   reproduce exactly the same states.
 
-File format: ``.npz`` (numpy), readable without the project using ``np.load``.
-
-Usage ::
-
-    rec = FlightRecorder(model, physics_dt=0.01, substeps=10)
-    rec.record(t, x, u)            # at each decision (here every 0.1 s)
-    ...
-    flight = rec.finish()
-    flight.save("outputs/flights/flight.npz")
-    states = replay(FlightRecording.load("outputs/flights/flight.npz"))
 """
 
 from __future__ import annotations

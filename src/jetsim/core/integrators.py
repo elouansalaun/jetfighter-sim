@@ -1,17 +1,4 @@
 """Fixed-step integrators and a generic simulation loop.
-
-Every dynamics in the project (3-DOF aircraft, 6-DOF, missile) is written in the form ::
-
-    ẋ = f(t, x, u)
-
-with x the state vector (1-D numpy) and u the control vector. The control is held
-constant over one step (zero-order hold), as a flight computer would do.
-
-Two rates coexist:
-
-* the physics advances with a fixed step ``dt`` (0.01 s by default, 100 Hz);
-* the controller (PID, RL agent) decides every ``control_dt`` (typically 0.05 to 0.1 s),
-  i.e. a frame skip of ``control_dt / dt`` physics steps per decision.
 """
 
 from __future__ import annotations

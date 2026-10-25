@@ -7,8 +7,6 @@
 2. Step responses of the 6-DOF fly-by-wire flight controls (n_z and roll rate) at
    three flight points, with the aircraft stable (x_cg = 0.30) and unstable (x_cg = 0.35).
 
-Outputs in ``results/``: ``phase6_mission.png``, ``phase6_fbw.png`` and
-``flights/phase6_mission_6dof.acmi`` (Tacview).
 
 """
 

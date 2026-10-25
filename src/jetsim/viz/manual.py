@@ -6,12 +6,6 @@ the simulation in real time, monitors the envelope and records the flight. It is
 without a screen. The renderer (``HudRenderer``) draws an artificial horizon and the instruments
 with pygame.
 
-Control laws (stick ∈ [−1, 1], positive = pitch up / roll right / yaw right):
-
-* 6-DOF (direct control-surface command): δe = δe_trim + trim − 12°·pitch_stick,
-  δa = −15°·roll_stick, δr = −15°·rudder_pedals;
-* 3-DOF: α_cmd = α_trim + trim + 15°·pitch_stick, roll rate = 180°/s·stick.
-
 With the keyboard, the stick moves progressively while the key is held and returns
 to neutral when it is released (like a real spring-loaded stick).
 """

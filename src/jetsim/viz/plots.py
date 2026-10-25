@@ -1,10 +1,4 @@
 """Plots of a recorded flight: time series and 3D trajectory.
-
-Usage ::
-
-    from jetsim.viz.plots import plot_time_series, plot_trajectory_3d
-    fig = plot_time_series(recording)
-    fig.savefig("outputs/flight.png")
 """
 
 from __future__ import annotations

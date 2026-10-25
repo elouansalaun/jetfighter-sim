@@ -9,8 +9,6 @@ Outputs go to ``results/flights/``:
 * ``demo_series.png`` and ``demo_3d.png``: plots;
 * ``demo.acmi``      : to open in Tacview (https://www.tacview.net, free version).
 
-Usage:
-    python scripts/demo_flight.py [--model 3dof|6dof]
 """
 
 from __future__ import annotations
