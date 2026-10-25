@@ -27,4 +27,4 @@ project_roadmap.md
 .idea/
 
 #notebooks
-notebooks
+/notebooks
